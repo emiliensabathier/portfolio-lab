@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from plab.alloc.rules import equal_weight, fixed_weights, min_variance
+from plab.alloc.rules import OptimizerError, equal_weight, fixed_weights, min_variance
+from plab.returns import simple_returns
 from plab.risk.covariance import sample_covariance
 
 
@@ -59,9 +60,43 @@ def test_min_variance_overweights_the_calmer_asset() -> None:
 
 
 def test_min_variance_is_long_only_and_fully_invested() -> None:
+    # A contract check, not an optimality check: _as_dict guarantees both properties by
+    # construction. The two tests below are what actually constrain the optimizer.
     history = _history(2_000, [0.01, 0.02, 0.015], 0.5, seed=3)
 
     weights = min_variance(history.index[-1], history)
 
     assert all(weight >= -1e-9 for weight in weights.values())
     assert sum(weights.values()) == pytest.approx(1.0)
+
+
+def test_min_variance_achieves_lower_variance_than_equal_weight() -> None:
+    # The genuine optimality property. It fails if the objective is wrong in any way that
+    # still returns a feasible point, which the long-only and fully-invested assertions
+    # above cannot detect.
+    history = _history(3_000, [0.005, 0.03, 0.015], 0.2, seed=5)
+    covariance = sample_covariance(simple_returns(history))
+
+    def variance_of(weights: dict[str, float]) -> float:
+        vector = np.array([weights[ticker] for ticker in covariance.columns])
+        return float(vector @ covariance.to_numpy() @ vector)
+
+    optimized = min_variance(history.index[-1], history, estimator=sample_covariance)
+
+    assert variance_of(optimized) < variance_of(equal_weight(history.index[-1], history))
+
+
+def test_a_non_convergent_optimizer_raises_instead_of_falling_back(monkeypatch) -> None:
+    # The most important line in this module. A failed optimization must never be rescued
+    # with equal weight: that would publish equal-weight results under a minimum-variance
+    # label. Without this test, a future edit could reintroduce such a fallback and the
+    # whole suite would stay green.
+    class FailedResult:
+        success = False
+        message = "simulated non-convergence"
+        x = np.array([0.5, 0.5])
+
+    monkeypatch.setattr("plab.alloc.rules.minimize", lambda *args, **kwargs: FailedResult())
+
+    with pytest.raises(OptimizerError, match="did not converge"):
+        min_variance(pd.Timestamp("2020-01-01"), _history(200, [0.01, 0.02], 0.0))

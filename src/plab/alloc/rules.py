@@ -12,8 +12,10 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
+from plab.backtest.engine import Strategy
 from plab.returns import simple_returns
 from plab.risk.covariance import ledoit_wolf_covariance
+from plab.risk.metrics import NUMERICAL_ZERO
 
 Estimator = Callable[[pd.DataFrame], pd.DataFrame]
 
@@ -29,8 +31,20 @@ class OptimizerError(Exception):
 
 
 def _as_dict(weights: np.ndarray, columns: pd.Index) -> dict[str, float]:
+    """Clip SLSQP's tiny bound violations and renormalize to a fully-invested book.
+
+    Renormalizing is only legitimate when something positive survives the clip. A solution
+    that is entirely non-positive is not a portfolio to be rescued by division — dividing
+    by its ~zero sum would manufacture arbitrary weights out of numerical dust.
+    """
     clipped = np.clip(weights, 0.0, None)
-    return dict(zip(columns, clipped / clipped.sum(), strict=True))
+    total = float(clipped.sum())
+    if total <= NUMERICAL_ZERO:
+        raise OptimizerError(
+            "optimizer returned no positive weight; refusing to renormalize it into a "
+            "portfolio"
+        )
+    return dict(zip(columns, clipped / total, strict=True))
 
 
 def _solve(objective, n_assets: int, label: str) -> np.ndarray:
@@ -51,7 +65,7 @@ def equal_weight(date: pd.Timestamp, history: pd.DataFrame) -> dict[str, float]:
     return dict.fromkeys(history.columns, 1.0 / len(history.columns))
 
 
-def fixed_weights(mapping: dict[str, float]):
+def fixed_weights(mapping: dict[str, float]) -> Strategy:
     """Build a strategy that always returns ``mapping``. Used for benchmarks."""
     total = sum(mapping.values())
     if abs(total - 1.0) > SUM_TOLERANCE:
