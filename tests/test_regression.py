@@ -23,6 +23,11 @@ def expected() -> dict[str, dict[str, float]]:
 
 
 @pytest.fixture(scope="module")
+def expected_stress() -> dict[str, dict[str, dict[str, float]]]:
+    return json.loads((FIXTURES / "expected_stress.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture(scope="module")
 def output(frozen_prices: pd.DataFrame):
     """Run the pipeline once for the whole module."""
     return run(frozen_prices, CONFIG)
@@ -46,6 +51,28 @@ def test_out_of_sample_period_starts_after_the_estimation_window(output) -> None
 EXACT = {"equal_weight", "60/40"}
 TOLERANCE_EXACT = 1e-9
 TOLERANCE_OPTIMIZED = 1e-4
+
+
+def test_every_stress_outcome_matches_the_frozen_reference(
+    output, expected_stress: dict[str, dict[str, dict[str, float]]]
+) -> None:
+    # The headline metrics alone would not have caught this project's worst defect: a
+    # report that displayed a stress table while silently omitting the 2008 crisis it
+    # claimed to cover. Pinning these numbers means a shrunken observation count, or a
+    # scenario that quietly disappears, fails here rather than in a reader's hands.
+    assert set(output.stress) == set(expected_stress)
+
+    for name, scenarios in output.stress.items():
+        tolerance = TOLERANCE_EXACT if name in EXACT else TOLERANCE_OPTIMIZED
+        assert set(scenarios) == set(expected_stress[name]), name
+        for scenario, outcome in scenarios.items():
+            reference = expected_stress[name][scenario]
+            for metric, value in outcome.items():
+                assert value == pytest.approx(reference[metric], rel=tolerance), (
+                    name,
+                    scenario,
+                    metric,
+                )
 
 
 def test_every_metric_matches_the_frozen_reference(

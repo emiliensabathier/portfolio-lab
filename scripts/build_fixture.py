@@ -32,6 +32,17 @@ def main() -> None:
     (FIXTURES / "expected_metrics.json").write_text(
         json.dumps(expected, indent=2, sort_keys=True), encoding="utf-8"
     )
+
+    # Freeze the stress outcomes too. The headline metrics alone would not have caught the
+    # regression that mattered most here: a report that displayed a stress table while
+    # silently omitting the 2008 crisis it claimed to cover.
+    stress = {
+        name: {scenario: dict(outcome) for scenario, outcome in scenarios.items()}
+        for name, scenarios in output.stress.items()
+    }
+    (FIXTURES / "expected_stress.json").write_text(
+        json.dumps(stress, indent=2, sort_keys=True), encoding="utf-8"
+    )
     print(f"fixture written for {len(expected)} strategies")
 
 
