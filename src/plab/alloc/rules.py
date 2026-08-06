@@ -15,7 +15,7 @@ from scipy.optimize import minimize
 from plab.backtest.engine import Strategy
 from plab.returns import simple_returns
 from plab.risk.covariance import ledoit_wolf_covariance
-from plab.risk.metrics import NUMERICAL_ZERO
+from plab.risk.metrics import NUMERICAL_ZERO, PERIODS_PER_YEAR
 
 Estimator = Callable[[pd.DataFrame], pd.DataFrame]
 
@@ -90,4 +90,61 @@ def min_variance(
         return float(weights @ cov @ weights)
 
     solution = _solve(variance, cov.shape[0], "min_variance")
+    return _as_dict(solution, history.columns)
+
+
+def risk_parity(
+    date: pd.Timestamp,
+    history: pd.DataFrame,
+    *,
+    estimator: Estimator = ledoit_wolf_covariance,
+) -> dict[str, float]:
+    """Long-only portfolio where every asset contributes the same share of total risk."""
+    cov = estimator(simple_returns(history)).to_numpy()
+    n_assets = cov.shape[0]
+    target = 1.0 / n_assets
+
+    def dispersion(weights: np.ndarray) -> float:
+        # Guards the division below. Unreachable with the default shrinkage estimator,
+        # which is positive definite by construction, but a caller may pass
+        # sample_covariance, which can be singular on a short window.
+        portfolio_vol = float(np.sqrt(weights @ cov @ weights))
+        if portfolio_vol <= NUMERICAL_ZERO:
+            return 1e6
+        contributions = weights * (cov @ weights) / portfolio_vol
+        shares = contributions / contributions.sum()
+        return float(np.sum((shares - target) ** 2))
+
+    solution = _solve(dispersion, n_assets, "risk_parity")
+    return _as_dict(solution, history.columns)
+
+
+def max_sharpe(
+    date: pd.Timestamp,
+    history: pd.DataFrame,
+    *,
+    estimator: Estimator = ledoit_wolf_covariance,
+) -> dict[str, float]:
+    """Long-only portfolio maximizing the in-sample Sharpe ratio.
+
+    Sensitive to estimation error in expected returns by construction; reported alongside
+    the other rules precisely so that sensitivity is visible.
+    """
+    window = simple_returns(history)
+    cov = estimator(window).to_numpy()
+    # Both halves of the ratio must annualize with the same constant. The estimator
+    # annualizes the covariance with PERIODS_PER_YEAR, so hard-coding 252 here would let
+    # numerator and denominator drift apart silently if that constant ever changed.
+    expected = window.mean().to_numpy() * PERIODS_PER_YEAR
+
+    def negative_sharpe(weights: np.ndarray) -> float:
+        # Guards the division below. Unreachable with the default shrinkage estimator,
+        # which is positive definite by construction, but a caller may pass
+        # sample_covariance, which can be singular on a short window.
+        volatility = float(np.sqrt(weights @ cov @ weights))
+        if volatility <= NUMERICAL_ZERO:
+            return 1e6
+        return -float(weights @ expected) / volatility
+
+    solution = _solve(negative_sharpe, cov.shape[0], "max_sharpe")
     return _as_dict(solution, history.columns)
