@@ -15,8 +15,19 @@ from plab.risk.metrics import NUMERICAL_ZERO
 def return_contribution(
     weights: pd.DataFrame, asset_returns: pd.DataFrame
 ) -> pd.Series:
-    """Total return contributed by each asset over the whole period."""
+    """Total return contributed by each asset over the whole period.
+
+    Raises when the returns do not cover every weighted date and ticker. Reindexing alone
+    would fill the gap with NaN, and ``sum`` skips NaN by default — so a ticker held at a
+    real weight but missing from the returns would be reported as contributing exactly
+    0.0, indistinguishable from an asset that genuinely went nowhere.
+    """
     aligned = asset_returns.reindex(weights.index).reindex(columns=weights.columns)
+    if aligned.isna().to_numpy().any():
+        raise ValueError(
+            "asset returns do not cover every weighted date and ticker; refusing to sum "
+            "an incomplete attribution"
+        )
     return (weights * aligned).sum(axis=0)
 
 
