@@ -80,6 +80,60 @@ def test_buy_and_hold_of_a_single_asset_reproduces_that_asset_return() -> None:
     pd.testing.assert_series_equal(result.returns, asset, check_names=False, atol=1e-12)
 
 
+def test_weights_decided_at_a_rebalance_apply_only_from_the_next_day() -> None:
+    # Every other strategy in this file returns time-invariant weights, which makes the
+    # suite blind to weight-to-return misalignment: shifting or not shifting produces
+    # identical numbers. This one flips its allocation at each rebalance, so crediting a
+    # just-decided weight with the return already realized that day shows up at once.
+    #
+    # An all-in-one-asset allocation is also drift-proof — [1, 0] stays [1, 0] as prices
+    # move — so the expected value below holds both for this task's engine and for the
+    # drift-aware rewrite in Task 7.
+    prices = _prices()
+    decisions: list[tuple[pd.Timestamp, dict[str, float]]] = []
+
+    def alternating(date, history):
+        weights = {"A": 1.0, "B": 0.0} if len(decisions) % 2 == 0 else {"A": 0.0, "B": 1.0}
+        decisions.append((date, weights))
+        return weights
+
+    result = run_backtest(
+        prices, alternating, BacktestConfig(estimation_months=6, cost_bps=0.0)
+    )
+    asset_returns = prices.pct_change()
+
+    # On the second rebalance date the book must still hold the FIRST decision's weights.
+    second_date = decisions[1][0]
+    first_weights = decisions[0][1]
+    expected = sum(
+        first_weights[ticker] * asset_returns.loc[second_date, ticker]
+        for ticker in prices.columns
+    )
+
+    assert result.returns.loc[second_date] == pytest.approx(expected)
+
+
+def test_non_finite_weights_are_rejected() -> None:
+    # abs(nan - 1.0) > tolerance is False, so a NaN weight would sail through the sum
+    # check and poison every downstream result silently.
+    def broken(date, history):
+        return {"A": float("nan"), "B": 1.0}
+
+    with pytest.raises(StrategyError, match="non-finite"):
+        run_backtest(_prices(), broken, BacktestConfig(estimation_months=6))
+
+
+def test_a_ticker_the_strategy_omits_is_treated_as_an_explicit_zero() -> None:
+    def only_a(date, history):
+        return {"A": 1.0}
+
+    result = run_backtest(
+        _prices(), only_a, BacktestConfig(estimation_months=6, cost_bps=0.0)
+    )
+
+    assert (result.weights["B"] == 0.0).all()
+
+
 def test_weights_that_do_not_sum_to_one_are_rejected() -> None:
     def broken(date, history):
         return {"A": 0.5, "B": 0.2}

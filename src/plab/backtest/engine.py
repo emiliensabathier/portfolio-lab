@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 from plab.returns import simple_returns
@@ -55,10 +56,19 @@ def _rebalance_dates(index: pd.DatetimeIndex, first_valid: pd.Timestamp) -> list
 
 
 def _validate(weights: dict[str, float], columns: pd.Index, date: pd.Timestamp) -> pd.Series:
+    """Turn a strategy's weight dict into a validated Series over ``columns``.
+
+    A ticker the strategy omits is taken as an explicit zero. A ticker it names with a
+    non-finite value is an error: ``abs(nan - 1.0) > tolerance`` is False, so a NaN weight
+    would otherwise slip through the sum check and propagate into every later result.
+    """
     unknown = set(weights) - set(columns)
     if unknown:
         raise StrategyError(f"strategy returned unknown tickers {sorted(unknown)} at {date}")
-    series = pd.Series(weights, dtype=float).reindex(columns).fillna(0.0)
+    provided = pd.Series(weights, dtype=float)
+    if not np.isfinite(provided.to_numpy()).all():
+        raise StrategyError(f"strategy returned non-finite weights at {date}")
+    series = provided.reindex(columns).fillna(0.0)
     total = float(series.sum())
     if abs(total - 1.0) > WEIGHT_SUM_TOLERANCE:
         raise StrategyError(f"weights at {date} sum to {total:.6f}, expected 1.0")
@@ -89,8 +99,11 @@ def run_backtest(
 
     targets = pd.DataFrame(target_rows).T.sort_index()
 
-    # Hold the weights decided at the previous rebalance, applied from the next day.
-    held = targets.reindex(asset_returns.index, method="ffill")
+    # Weights decided at date d take effect at d+1, and the shift is what enforces it.
+    # Without the shift, reindex matches exactly on a rebalance date, so weights chosen
+    # from data through d's close would be credited with the return already realized
+    # between d-1 and d — a look-ahead leak in the very engine that exists to prevent one.
+    held = targets.reindex(asset_returns.index, method="ffill").shift(1)
     held = held.loc[held.notna().all(axis=1)]
     active = asset_returns.loc[held.index]
 
