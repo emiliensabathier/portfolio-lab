@@ -10,10 +10,16 @@ import pandas as pd
 
 from plab.risk.metrics import max_drawdown
 
+# Peak-to-trough windows on S&P 500 closing prices, each endpoint verified against SPY
+# rather than recalled: 2007-10-09 (110.87) to 2009-03-09 (49.68), 2020-02-19 (308.40) to
+# 2020-03-23 (204.42), and 2022-01-03 to the 2022-10-12 closing low (339.38). October 13th
+# 2022 printed a lower intraday level but closed higher, and the 14th closed at 340.40 —
+# above the 12th — so the closing-price convention used throughout puts the trough on the
+# 12th.
 HISTORICAL_SCENARIOS: dict[str, tuple[str, str]] = {
     "gfc_2008": ("2007-10-09", "2009-03-09"),
     "covid_2020": ("2020-02-19", "2020-03-23"),
-    "rates_2022": ("2022-01-03", "2022-10-14"),
+    "rates_2022": ("2022-01-03", "2022-10-12"),
 }
 
 

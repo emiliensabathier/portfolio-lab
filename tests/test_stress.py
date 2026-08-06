@@ -19,9 +19,12 @@ def test_replay_restricts_the_series_to_the_scenario_window() -> None:
 
     outcome = replay(returns, "covid_2020")
 
+    # Exact, not approximate: both endpoints are business days and the outer series is a
+    # bdate_range, so label slicing yields precisely len(bdate_range(start, end)) — 24
+    # observations here. A tolerance would let an inclusive/exclusive boundary slip
+    # through, which is the one thing this test exists to pin down.
     start, end = HISTORICAL_SCENARIOS["covid_2020"]
-    expected = len(pd.bdate_range(start, end))
-    assert outcome["observations"] == pytest.approx(expected, abs=2)
+    assert outcome["observations"] == len(pd.bdate_range(start, end))
     assert outcome["total_return"] < 0.0
 
 
@@ -32,6 +35,23 @@ def test_replay_reports_the_worst_single_day() -> None:
     returns = pd.Series(values, index=index)
 
     assert replay(returns, "covid_2020")["worst_day"] == pytest.approx(-0.09)
+
+
+def test_replay_reports_the_drawdown_local_to_the_window() -> None:
+    # The max_drawdown key is consumed by the report in Task 12, so it needs an assertion
+    # of its own: without one, passing the wrong series to max_drawdown — the whole
+    # unwindowed history, say — would go unnoticed.
+    index = pd.bdate_range("2020-02-19", "2020-03-23")
+    values = np.zeros(len(index))
+    values[3] = -0.25
+    values[4] = 0.10
+    returns = pd.Series(values, index=index)
+
+    outcome = replay(returns, "covid_2020")
+
+    # Wealth path 1.0 -> 0.75 -> 0.825: the trough is 25% below the running peak, and the
+    # partial recovery does not undo it.
+    assert outcome["max_drawdown"] == pytest.approx(-0.25)
 
 
 def test_replay_raises_when_the_series_does_not_cover_the_window() -> None:
