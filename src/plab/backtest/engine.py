@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from plab.returns import simple_returns
+from plab.risk.metrics import NUMERICAL_ZERO
 
 Strategy = Callable[[pd.Timestamp, pd.DataFrame], dict[str, float]]
 
@@ -75,10 +76,19 @@ def _validate(weights: dict[str, float], columns: pd.Index, date: pd.Timestamp) 
     return series
 
 
+def _drifted_weights(previous: pd.Series, period_returns: pd.Series) -> pd.Series:
+    """Weights after one period of market drift, before any rebalancing."""
+    grown = previous * (1.0 + period_returns)
+    total = float(grown.sum())
+    if abs(total) <= NUMERICAL_ZERO:
+        raise StrategyError("portfolio value collapsed to zero")
+    return grown / total
+
+
 def run_backtest(
     prices: pd.DataFrame, strategy: Strategy, config: BacktestConfig
 ) -> BacktestResult:
-    """Run ``strategy`` over ``prices`` with monthly rebalancing."""
+    """Run ``strategy`` over ``prices`` with monthly rebalancing, net of costs."""
     prices = prices.sort_index()
     asset_returns = simple_returns(prices)
 
@@ -91,31 +101,62 @@ def run_backtest(
         )
 
     window = pd.DateOffset(months=config.estimation_months)
-    target_rows: dict[pd.Timestamp, pd.Series] = {}
-    for date in dates:
-        history = prices.loc[date - window : date]
-        weights = strategy(date, history.copy())
-        target_rows[date] = _validate(weights, prices.columns, date)
+    rebalance_days = set(dates)
+    targets: dict[pd.Timestamp, pd.Series] = {}
+    turnover: dict[pd.Timestamp, float] = {}
+    costs: dict[pd.Timestamp, float] = {}
 
-    targets = pd.DataFrame(target_rows).T.sort_index()
+    held = pd.Series(0.0, index=prices.columns)
+    held_rows: dict[pd.Timestamp, pd.Series] = {}
+    gross_rows: dict[pd.Timestamp, float] = {}
+    net_rows: dict[pd.Timestamp, float] = {}
+    started = False
+    # Costs are incurred at the close of the rebalance day and charged to the next
+    # period's return, including the initial purchase.
+    pending = 0.0
 
-    # Weights decided at date d take effect at d+1, and the shift is what enforces it.
-    # Without the shift, reindex matches exactly on a rebalance date, so weights chosen
-    # from data through d's close would be credited with the return already realized
-    # between d-1 and d — a look-ahead leak in the very engine that exists to prevent one.
-    held = targets.reindex(asset_returns.index, method="ffill").shift(1)
-    held = held.loc[held.notna().all(axis=1)]
-    active = asset_returns.loc[held.index]
+    for day in asset_returns.index:
+        if started:
+            period = asset_returns.loc[day]
+            held_rows[day] = held.copy()
+            gross_rows[day] = float((held * period).sum())
+            net_rows[day] = gross_rows[day] - pending
+            pending = 0.0
+            held = _drifted_weights(held, period)
 
-    gross = (held * active).sum(axis=1)
-    gross.name = None
+        if day not in rebalance_days:
+            continue
 
-    zero = pd.Series(0.0, index=gross.index)
+        history = prices.loc[day - window : day]
+        target = _validate(strategy(day, history.copy()), prices.columns, day)
+
+        traded = float((target - held).abs().sum()) if started else float(target.abs().sum())
+        if started and traded < config.no_trade_band:
+            traded = 0.0
+            target = held
+
+        charge = traded * config.cost_bps / 10_000.0
+        targets[day] = target
+        turnover[day] = traded
+        costs[day] = charge
+        pending += charge
+
+        held = target
+        started = True
+
+    if pending and net_rows:
+        # A rebalance on the final day has no following period; charge it to the last one
+        # so that reported costs always reconcile with the net series.
+        last = max(net_rows)
+        net_rows[last] -= pending
+
+    net = pd.Series(net_rows).sort_index()
+    gross = pd.Series(gross_rows).sort_index()
     return BacktestResult(
-        returns=gross,
+        returns=net,
         gross_returns=gross,
-        weights=targets,
-        held_weights=held,
-        turnover=pd.Series(0.0, index=targets.index),
-        costs=zero,
+        weights=pd.DataFrame(targets).T.sort_index(),
+        held_weights=pd.DataFrame(held_rows).T.sort_index(),
+        turnover=pd.Series(turnover).sort_index(),
+        costs=pd.Series(costs).sort_index(),
     )
