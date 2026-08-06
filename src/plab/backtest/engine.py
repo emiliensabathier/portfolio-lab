@@ -4,6 +4,13 @@ The engine is the single seam between data and strategies. It hands a strategy a
 the trailing estimation window ending at the decision date and nothing else, so a strategy
 cannot see the future even if its author tries. Weights decided on date ``d`` are applied
 from the following trading day.
+
+Transaction costs: turnover at a rebalance is the two-way distance between the drifted
+weights held going in and the newly decided target, ``sum(|w_target - w_drifted|)``. The
+charge is ``turnover * cost_bps / 10_000``, incurred at the close of the rebalance day and
+debited from the *next* period's return — including the initial purchase. ``returns`` is
+therefore always net of costs; ``gross_returns`` is what the same strategy would have earned
+free of any friction.
 """
 
 from __future__ import annotations
@@ -144,9 +151,21 @@ def run_backtest(
         held = target
         started = True
 
-    if pending and net_rows:
+    if not net_rows:
+        # The history ends on the first rebalance date, so no period follows it and the
+        # charge has nothing to attach to. Dropping it silently would leave costs.sum()
+        # irreconcilable with gross - net, which is precisely the invariant this module
+        # promises.
+        raise StrategyError(
+            "the price history ends on the first rebalance date, so no return period "
+            "follows it and the transaction cost cannot be charged"
+        )
+
+    if pending:
         # A rebalance on the final day has no following period; charge it to the last one
-        # so that reported costs always reconcile with the net series.
+        # so that reported costs always reconcile with the net series. `pending` is either
+        # exactly 0.0 or a real accumulated charge, never floating-point noise, so plain
+        # truthiness is safe here despite the package's usual NUMERICAL_ZERO convention.
         last = max(net_rows)
         net_rows[last] -= pending
 

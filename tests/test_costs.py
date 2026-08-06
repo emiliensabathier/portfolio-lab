@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from plab.backtest.engine import BacktestConfig, run_backtest
+from plab.backtest.engine import BacktestConfig, StrategyError, run_backtest
 
 
 def _flat_prices(n_days: int = 500) -> pd.DataFrame:
@@ -50,17 +50,46 @@ def test_net_returns_are_gross_minus_costs() -> None:
     assert difference == pytest.approx(result.costs.sum(), abs=1e-12)
 
 
-def test_no_trade_band_suppresses_small_rebalances() -> None:
-    prices = _flat_prices()
+def _drifting_prices(n_days: int = 500) -> pd.DataFrame:
+    """A rises steadily while B stays flat, so held weights drift away from any target."""
+    index = pd.bdate_range("2015-01-01", periods=n_days)
+    rising = 100.0 * np.cumprod(np.full(n_days, 1.001))
+    return pd.DataFrame({"A": rising, "B": np.full(n_days, 100.0)}, index=index)
 
-    def drifting(date, history):
+
+def test_no_trade_band_suppresses_a_rebalance_smaller_than_the_band() -> None:
+    # The fixture must genuinely drift. Under flat prices the held weights never leave the
+    # target, so `traded` is already 0.0 before the band is consulted — a test built that
+    # way passes even with the band logic deleted outright, which is what this replaces.
+    prices = _drifting_prices()
+
+    def constant(date, history):
         return {"A": 0.5, "B": 0.5}
 
+    unbanded = run_backtest(
+        prices, constant, BacktestConfig(estimation_months=6, no_trade_band=0.0)
+    )
     banded = run_backtest(
-        prices, drifting, BacktestConfig(estimation_months=6, no_trade_band=0.05)
+        prices, constant, BacktestConfig(estimation_months=6, no_trade_band=0.5)
     )
 
+    # Monthly drift is worth about 0.011 of turnover per rebalance: a 0.5 band swallows
+    # every one, a zero band trades on every one.
+    assert unbanded.turnover.iloc[1:].sum() == pytest.approx(0.1739, rel=0.01)
     assert banded.turnover.iloc[1:].sum() == pytest.approx(0.0)
+
+
+def test_a_history_ending_on_the_first_rebalance_raises() -> None:
+    # 152 business days from 2015-01-01 land exactly on 2015-07-31, the first rebalance
+    # after a six-month estimation window. No period follows it, so the initial purchase
+    # charge has nothing to attach to and must be refused rather than dropped.
+    prices = _flat_prices(152)
+
+    def constant(date, history):
+        return {"A": 0.5, "B": 0.5}
+
+    with pytest.raises(StrategyError, match="ends on the first rebalance date"):
+        run_backtest(prices, constant, BacktestConfig(estimation_months=6))
 
 
 def test_held_weights_are_daily_and_aligned_with_the_return_series() -> None:
