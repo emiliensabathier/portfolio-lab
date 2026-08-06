@@ -41,6 +41,10 @@ def sharpe_ratio(returns: pd.Series, risk_free: float = 0.0) -> float:
 
     Infinite when volatility is zero, which is the mathematically correct answer for a
     riskless series rather than a masked division by zero.
+
+    ``risk_free`` is de-annualized linearly rather than geometrically, consistent with the
+    simple-return convention used throughout. The difference is negligible at realistic
+    rates and would only matter for a high-rate regime.
     """
     excess = returns - risk_free / PERIODS_PER_YEAR
     volatility = annualized_volatility(excess)
@@ -51,13 +55,23 @@ def sharpe_ratio(returns: pd.Series, risk_free: float = 0.0) -> float:
 
 
 def sortino_ratio(returns: pd.Series, target: float = 0.0) -> float:
-    """Annualized excess return over downside deviation below ``target``."""
+    """Annualized excess return over downside deviation below ``target``.
+
+    The downside deviation follows Sortino and Price: the sum of squared shortfalls is
+    divided by the TOTAL number of periods, not by the number of losing ones. Periods
+    above target contribute zero to the sum but still count in the denominator. Dividing
+    by the count of losing periods instead inflates the deviation whenever losses are a
+    minority — by a factor of about 1.5 at a 43% loss frequency — and understates the
+    ratio correspondingly.
+    """
     excess = returns - target / PERIODS_PER_YEAR
     downside = excess[excess < 0.0]
     annual_excess = float(excess.mean() * PERIODS_PER_YEAR)
     if downside.empty:
         return np.inf if annual_excess > 0 else 0.0
-    deviation = float(np.sqrt((downside**2).mean()) * np.sqrt(PERIODS_PER_YEAR))
+    deviation = float(
+        np.sqrt((downside**2).sum() / len(excess)) * np.sqrt(PERIODS_PER_YEAR)
+    )
     if deviation <= NUMERICAL_ZERO:
         return np.inf if annual_excess > 0 else 0.0
     return annual_excess / deviation

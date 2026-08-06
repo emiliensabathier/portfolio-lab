@@ -64,10 +64,26 @@ def test_sortino_ignores_upside_deviation() -> None:
     assert np.isfinite(sortino_ratio(mixed))
 
 
+def test_sortino_divides_shortfalls_by_the_total_number_of_periods() -> None:
+    # 50 periods, 25 of them at -1%. The canonical downside deviation divides the sum of
+    # squared shortfalls by the TOTAL period count, not by the count of losing periods.
+    # Dividing by 25 instead of 50 would inflate the deviation by sqrt(2) and shrink the
+    # ratio by the same factor, which this expected value pins down.
+    returns = _series([0.02, -0.01] * 25)
+
+    expected_deviation = np.sqrt(25 * 0.01**2 / 50) * np.sqrt(PERIODS_PER_YEAR)
+    expected = (float(returns.mean()) * PERIODS_PER_YEAR) / expected_deviation
+
+    assert sortino_ratio(returns) == pytest.approx(expected)
+
+
 def test_calmar_is_cagr_over_absolute_max_drawdown() -> None:
+    # Path 1.0 -> 1.25 -> 1.00 -> 1.50 over 3 periods: final wealth 1.5 and a worst
+    # peak-to-trough of -20%, both read off the path rather than recomputed by the code
+    # under test.
     returns = _series([0.25, -0.20, 0.50])
 
-    expected = cagr(returns) / abs(max_drawdown(returns))
+    expected = (1.5 ** (PERIODS_PER_YEAR / 3) - 1.0) / 0.20
     assert calmar_ratio(returns) == pytest.approx(expected)
 
 
