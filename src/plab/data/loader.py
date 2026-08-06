@@ -6,13 +6,20 @@ The fetcher is injected so the whole module is testable without network access.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Protocol
 
 import pandas as pd
 
 from plab.errors import DataError
+
+# A cache entry older than this is treated as a miss and refetched, even if its
+# (start, end) key still matches. Without this, a run with end=None (the CLI's default)
+# never changes its cache key, so a stale cache — one written before newer trading days
+# were available upstream — would be reused indefinitely and the report header would
+# silently print a stale "as of" date.
+CACHE_MAX_AGE = timedelta(days=1)
 
 
 class Fetcher(Protocol):
@@ -49,6 +56,9 @@ def _read_cached(cache_dir: Path, ticker: str, start: str, end: str | None) -> p
         return None
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     if meta.get("start") != start or meta.get("end") != end:
+        return None
+    fetched_at = meta.get("fetched_at")
+    if fetched_at is None or datetime.now(UTC) - datetime.fromisoformat(fetched_at) > CACHE_MAX_AGE:
         return None
     return pd.read_parquet(data_path)[ticker]
 

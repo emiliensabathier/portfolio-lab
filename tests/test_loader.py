@@ -1,3 +1,5 @@
+import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -78,6 +80,24 @@ def test_gap_in_series_raises_instead_of_filling(tmp_path: Path) -> None:
     with pytest.raises(DataError, match="missing"):
         load_prices(["SPY"], "2020-01-01", "2020-01-31",
                     cache_dir=tmp_path, fetcher=fetcher)
+
+
+def test_a_stale_cache_entry_triggers_a_refetch(tmp_path: Path) -> None:
+    fetcher = RecordingFetcher(
+        _frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, 101.0]})
+    )
+    load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
+
+    # Hand-write a sidecar whose fetched_at is well past the staleness threshold, as if
+    # the cache had been written months ago and never invalidated.
+    meta_path = tmp_path / "SPY.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["fetched_at"] = (datetime.now(UTC) - timedelta(days=400)).isoformat()
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+    load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
+
+    assert fetcher.calls == 2
 
 
 def test_a_gappy_series_is_never_written_to_the_cache(tmp_path: Path) -> None:
