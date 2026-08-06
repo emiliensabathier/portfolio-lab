@@ -5,7 +5,12 @@ import pytest
 from plab.risk.attribution import bloc_contribution, return_contribution, risk_contribution
 
 
-def test_return_contributions_sum_to_the_portfolio_return() -> None:
+def test_return_contributions_sum_to_the_arithmetic_sum_of_daily_portfolio_returns() -> None:
+    # Deliberately not "the portfolio return": that phrase would suggest the compounded
+    # total return over the period. This asserts equality with the arithmetic sum of daily
+    # returns instead, which is a different (and smaller in magnitude, over multiple
+    # periods) quantity. Conflating the two is the same basis mismatch flagged in the
+    # asset-class attribution table (return over the whole path vs. a single snapshot).
     index = pd.bdate_range("2020-01-01", periods=4)
     weights = pd.DataFrame(0.5, index=index, columns=["A", "B"])
     returns = pd.DataFrame(
