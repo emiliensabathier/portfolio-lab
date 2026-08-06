@@ -78,3 +78,18 @@ def test_gap_in_series_raises_instead_of_filling(tmp_path: Path) -> None:
     with pytest.raises(DataError, match="missing"):
         load_prices(["SPY"], "2020-01-01", "2020-01-31",
                     cache_dir=tmp_path, fetcher=fetcher)
+
+
+def test_a_gappy_series_is_never_written_to_the_cache(tmp_path: Path) -> None:
+    fetcher = RecordingFetcher(
+        _frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, float("nan")]})
+    )
+
+    with pytest.raises(DataError):
+        load_prices(["SPY"], "2020-01-01", "2020-01-31",
+                    cache_dir=tmp_path, fetcher=fetcher)
+
+    # Caching an incomplete series would make a transient outage permanent: the next
+    # run would read the poisoned cache and fail identically, with no signal that
+    # refresh=True is what unblocks it.
+    assert list(tmp_path.glob("SPY.*")) == []

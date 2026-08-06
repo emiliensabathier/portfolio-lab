@@ -100,6 +100,13 @@ def load_prices(
             if ticker not in fetched.columns:
                 raise DataError(f"no price series returned for {ticker}")
             series = fetched[ticker]
+            # Validate before caching. Persisting a gappy series would make a transient
+            # upstream outage permanent: every later run reads the poisoned cache and
+            # fails identically, with no way for the caller to know refresh=True is needed.
+            if series.isna().any():
+                raise DataError(
+                    f"missing observations for {ticker}; refusing to cache or fill gaps"
+                )
             _write_cache(cache_dir, ticker, series, start, end)
             cached[ticker] = series
 
@@ -109,6 +116,9 @@ def load_prices(
 
     if prices.empty:
         raise DataError(f"empty price frame for {tickers}")
+    # Second gap check, and not a duplicate of the per-ticker one above: this one catches
+    # NaN introduced by aligning tickers whose trading calendars differ, and gaps in
+    # series that came from the cache rather than the fetcher.
     incomplete = prices.columns[prices.isna().any()].tolist()
     if incomplete:
         raise DataError(f"missing observations for {incomplete}; refusing to fill gaps")
