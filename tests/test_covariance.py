@@ -128,3 +128,16 @@ def test_a_single_observation_raises() -> None:
 
     with pytest.raises(SingularCovarianceError, match="two observations"):
         ledoit_wolf_covariance(single)
+
+
+def test_similarly_volatile_uncorrelated_assets_are_accepted() -> None:
+    # Regression guard for a scale bug. Two assets at the same 1% daily volatility with
+    # zero correlation give a mean variance of ~1e-4 and a dispersion of ~1.3e-13 — below
+    # an absolute 1e-12 floor, even though the input is entirely ordinary. The dispersion
+    # guard must scale with mu**2, or this legitimate portfolio is rejected outright.
+    equal_vol = _iid_returns(4_000, 2, seed=3)
+
+    intensity = shrinkage_intensity(equal_vol)
+
+    assert 0.0 <= intensity <= 1.0
+    assert ledoit_wolf_covariance(equal_vol).shape == (2, 2)

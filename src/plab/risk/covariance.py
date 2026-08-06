@@ -36,11 +36,21 @@ def shrinkage_intensity(returns: pd.DataFrame) -> float:
 
     sample = x.T @ x / n_obs  # maximum-likelihood covariance
     mu = float(np.trace(sample) / n_assets)
+    # Absolute threshold here, unlike the dispersion check below: mu *is* the scale, so
+    # there is nothing to normalize it against. A mean daily variance at or below 1e-12
+    # means a daily volatility under 1e-6, which is not a traded asset.
     if mu <= NUMERICAL_ZERO:
         raise SingularCovarianceError("sample covariance has zero trace")
 
     dispersion = float(np.sum((sample - mu * np.eye(n_assets)) ** 2) / n_assets)
-    if dispersion <= NUMERICAL_ZERO:
+    # The threshold is relative, not absolute, because dispersion carries the units of a
+    # squared variance while mu carries those of a variance. For daily returns at 1%
+    # volatility, mu is about 1e-4 and the dispersion of a near-identity population is of
+    # order sigma^4 / T — around 1e-13 for a few thousand observations. An absolute 1e-12
+    # floor therefore rejects two similarly-volatile, weakly-correlated assets, which is a
+    # perfectly ordinary input. Comparing against NUMERICAL_ZERO * mu**2 keeps the check
+    # dimensionally consistent and scale-free.
+    if dispersion <= NUMERICAL_ZERO * mu * mu:
         raise SingularCovarianceError("sample covariance is exactly the identity target")
 
     noise = float(
