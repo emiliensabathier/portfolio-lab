@@ -39,18 +39,21 @@ def test_replay_reports_the_worst_single_day() -> None:
 
 def test_replay_reports_the_drawdown_local_to_the_window() -> None:
     # The max_drawdown key is consumed by the report in Task 12, so it needs an assertion
-    # of its own: without one, passing the wrong series to max_drawdown — the whole
-    # unwindowed history, say — would go unnoticed.
-    index = pd.bdate_range("2020-02-19", "2020-03-23")
-    values = np.zeros(len(index))
-    values[3] = -0.25
-    values[4] = 0.10
-    returns = pd.Series(values, index=index)
+    # of its own. The fixture deliberately extends well beyond the scenario and hides a
+    # DEEPER crash outside it: a series confined to the window would make `window` and
+    # `returns` the same object, and passing the unwindowed series to max_drawdown — the
+    # exact wiring bug this guards against — would still produce the expected number.
+    returns = pd.Series(0.0, index=pd.bdate_range("2020-01-02", "2020-04-30"))
+    returns.loc["2020-01-15"] = -0.50
+
+    window = pd.bdate_range("2020-02-19", "2020-03-23")
+    returns.loc[window[3]] = -0.25
+    returns.loc[window[4]] = 0.10
 
     outcome = replay(returns, "covid_2020")
 
-    # Wealth path 1.0 -> 0.75 -> 0.825: the trough is 25% below the running peak, and the
-    # partial recovery does not undo it.
+    # Inside the window the wealth path is 1.0 -> 0.75 -> 0.825, so the drawdown is -0.25.
+    # Across the whole series it would be -0.625, which is what a wrong slice would report.
     assert outcome["max_drawdown"] == pytest.approx(-0.25)
 
 
