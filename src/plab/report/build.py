@@ -61,7 +61,12 @@ def _performance_table(
             _num(stats["sortino"]),
             _pct(stats["max_drawdown"]),
             _num(stats["calmar"]),
-            _num(float(result.turnover.mean() * 12)),
+            # The first rebalance's turnover is 1.0 by construction: it is deploying
+            # capital into the book, not trading an existing position. Including it in
+            # the average charges every strategy a flat one-off cost that has nothing to
+            # do with its steady-state trading behavior. test_costs.py already excludes
+            # it with the same .iloc[1:] when it wants steady-state turnover.
+            _num(float(result.turnover.iloc[1:].mean() * 12)),
         ]
         if reference is not None:
             row.append(_num(beta(result.returns, reference)))
@@ -83,7 +88,8 @@ def _attribution_table(attribution: dict[str, pd.DataFrame]) -> str:
                  _pct(values["risk_share"])]
             )
     return _table(
-        ["Strategy", "Asset class", "Return contribution", "Share of risk"], rows
+        ["Strategy", "Asset class", "Return contribution", "Share of risk (final allocation)"],
+        rows,
     )
 
 
@@ -115,9 +121,14 @@ def _stress_table(stress: dict[str, dict[str, dict[str, float]]]) -> str:
                     _pct(outcome["total_return"]),
                     _pct(outcome["max_drawdown"]),
                     _pct(outcome["worst_day"]),
+                    str(int(outcome["observations"])),
                 ]
             )
-    return _table(["Strategy", "Scenario", "Total return", "Max drawdown", "Worst day"], rows)
+    return _table(
+        ["Strategy", "Scenario", "Total return", "Max drawdown", "Worst day",
+         "Observations"],
+        rows,
+    )
 
 
 def build_report(
@@ -163,7 +174,13 @@ def build_report(
         sections += [
             "<h2>Asset class attribution</h2>",
             '<p class="note">Where the return came from, and where the risk sits. The two '
-            "rarely match: that gap is what separates risk parity from equal weight.</p>",
+            "columns are computed on different bases and are not a like-for-like "
+            "decomposition: return contribution is summed over the whole backtest, while "
+            "share of risk is a snapshot of the final target allocation only. A bloc can "
+            "therefore show a large return contribution and zero risk share simply "
+            "because it was held for years and then dropped from the current weights. "
+            "Unlike every other figure in this report, the return contributions here are "
+            "computed from raw asset returns and are not net of transaction costs.</p>",
             _attribution_table(bloc_attribution),
         ]
     if stress:
