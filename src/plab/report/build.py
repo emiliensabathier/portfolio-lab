@@ -132,6 +132,13 @@ def build_report(
     """Render the whole report as one self-contained HTML document."""
     if not results:
         raise ValueError("the report needs at least one backtest result")
+    if benchmark is not None and benchmark not in results:
+        # Silently dropping the Beta column would turn a caller's typo, or a renamed
+        # strategy, into a quietly less informative report rather than an error.
+        raise ValueError(
+            f"benchmark {benchmark!r} is not among the backtested strategies "
+            f"{sorted(results)}"
+        )
 
     series = {name: result.returns for name, result in results.items()}
     start = min(s.index.min() for s in series.values()).date()

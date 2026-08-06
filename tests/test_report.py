@@ -5,6 +5,7 @@ import pytest
 from plab.backtest.engine import BacktestResult
 from plab.report.build import build_report
 from plab.report.charts import figure_to_svg, wealth_chart
+from plab.risk.metrics import summary
 
 
 def _result(seed: int = 0) -> BacktestResult:
@@ -54,9 +55,27 @@ def test_report_is_a_single_document_with_no_external_resources() -> None:
 
     assert html.startswith("<!doctype html>")
     # SVG namespace declarations legitimately contain http:// URIs, so test for actual
-    # resource references instead of the bare substring.
-    for forbidden in ('src="http', "href=\"http", "<script", "<link", "@import", "cdn"):
-        assert forbidden not in html, forbidden
+    # resource references instead of the bare substring. The list covers single-quoted
+    # attributes, protocol-relative URLs and CSS url() references too: each is a way to
+    # pull a remote asset that a naive check for 'src="http' would wave through.
+    lowered = html.lower()
+    for forbidden in (
+        'src="http',
+        "src='http",
+        'href="http',
+        "href='http",
+        'src="//',
+        "src='//",
+        "url(http",
+        "url('http",
+        'url("http',
+        "<script",
+        "<link",
+        "@import",
+        "@font-face",
+        "cdn",
+    ):
+        assert forbidden not in lowered, forbidden
 
 
 def test_report_shows_every_strategy_and_its_headline_metrics() -> None:
@@ -112,6 +131,50 @@ def test_report_shows_asset_class_attribution_when_supplied() -> None:
 
     assert "Asset class attribution" in html
     assert "equity" in html
+
+
+def test_the_performance_table_puts_each_metric_under_its_own_header() -> None:
+    # Asserting header labels proves nothing about the cells beneath them: transposing two
+    # entries in the row list would render a perfectly plausible table. This pins the
+    # column mapping and the percent formatting to values computed from summary().
+    result = _result()
+    html = build_report(
+        results={"only": result}, risk_shares={}, stress={}, generated_on="2026-08-06"
+    )
+
+    body = html.split("<tbody>")[1].split("</tbody>")[0]
+    cells = [chunk.split("</td>")[0] for chunk in body.split("<td>")[1:]]
+    stats = summary(result.returns)
+
+    assert cells[0] == "only"
+    assert cells[1] == f"{stats['cagr'] * 100:.2f}%"
+    assert cells[2] == f"{stats['volatility'] * 100:.2f}%"
+    assert cells[3] == f"{stats['sharpe']:.2f}"
+    assert cells[4] == f"{stats['sortino']:.2f}"
+    assert cells[5] == f"{stats['max_drawdown'] * 100:.2f}%"
+    assert cells[6] == f"{stats['calmar']:.2f}"
+
+
+def test_a_strategy_name_containing_markup_is_escaped() -> None:
+    html = build_report(
+        results={"<script>alert(1)</script>": _result()},
+        risk_shares={},
+        stress={},
+        generated_on="2026-08-06",
+    )
+
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
+
+def test_a_benchmark_that_was_not_backtested_raises() -> None:
+    with pytest.raises(ValueError, match="not among the backtested strategies"):
+        build_report(
+            results={"only": _result()},
+            risk_shares={},
+            stress={},
+            generated_on="2026-08-06",
+            benchmark="typo",
+        )
 
 
 def test_report_rejects_an_empty_result_set() -> None:
