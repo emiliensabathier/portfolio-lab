@@ -21,17 +21,19 @@ class Asset:
     inception: str  # first reliable trading date, ISO format
 
 
+# Inception dates are the first trading day actually present in each ticker's full
+# history, checked against the downloaded data rather than recalled.
 ETF_CORE: tuple[Asset, ...] = (
     Asset("SPY", "US large cap equity", "equity", "1993-01-29"),
     Asset("IWM", "US small cap equity", "equity", "2000-05-26"),
-    Asset("EFA", "Developed ex-US equity", "equity", "2001-08-17"),
+    Asset("EFA", "Developed ex-US equity", "equity", "2001-08-27"),
     Asset("EEM", "Emerging market equity", "equity", "2003-04-14"),
-    Asset("AGG", "US aggregate bonds", "rates", "2003-09-26"),
+    Asset("AGG", "US aggregate bonds", "rates", "2003-09-29"),
     Asset("TLT", "US long treasuries", "rates", "2002-07-30"),
     Asset("HYG", "US high yield credit", "rates", "2007-04-11"),
     Asset("GLD", "Gold", "real", "2004-11-18"),
     Asset("VNQ", "US REITs", "real", "2004-09-29"),
-    Asset("DBC", "Broad commodities", "real", "2006-02-03"),
+    Asset("DBC", "Broad commodities", "real", "2006-02-06"),
 )
 
 # HYG, listed 2007-04-11, is the binding constraint on the common history.

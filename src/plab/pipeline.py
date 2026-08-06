@@ -51,8 +51,8 @@ def run(prices: pd.DataFrame, config: BacktestConfig) -> PipelineOutput:
         result = run_backtest(prices, strategy, config)
         results[name] = result
 
-        final = result.weights.iloc[-1].to_dict()
-        contributions = risk_contribution(final, covariance)
+        final = result.weights.iloc[-1]
+        contributions = risk_contribution(final.to_dict(), covariance)
         shares = contributions / contributions.sum()
         risk_shares[name] = shares
 
@@ -64,14 +64,17 @@ def run(prices: pd.DataFrame, config: BacktestConfig) -> PipelineOutput:
             }
         ).fillna(0.0)
 
-        outcomes: dict[str, dict[str, float]] = {}
-        for scenario in HISTORICAL_SCENARIOS:
-            try:
-                outcomes[scenario] = replay(result.returns, scenario)
-            except ValueError:
-                continue  # the scenario predates the out-of-sample window
-        if outcomes:
-            stress[name] = outcomes
+        # Stress scenarios apply the strategy's final weights to the raw asset returns of
+        # each episode, rather than slicing its own out-of-sample series. That series
+        # cannot reach 2008 — the first 36 months of history are spent estimating — so
+        # slicing it would silently drop the very crisis this section exists to cover.
+        # Every row is therefore a counterfactual on the current allocation: comparable
+        # with the others, and labelled as such in the report. No scenario is skipped; a
+        # window the price history cannot reach is an error, not something to swallow.
+        static = (asset_returns * final).sum(axis=1)
+        stress[name] = {
+            scenario: replay(static, scenario) for scenario in HISTORICAL_SCENARIOS
+        }
 
     return PipelineOutput(
         results=results,
