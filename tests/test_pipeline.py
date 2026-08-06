@@ -55,13 +55,21 @@ def test_asset_class_attribution_covers_the_three_blocs(output) -> None:
     assert frame["risk_share"].sum() == pytest.approx(1.0)
 
 
-def test_every_strategy_is_stressed_through_all_three_scenarios(output) -> None:
+def test_every_strategy_is_stressed_over_each_full_scenario_window(output) -> None:
     # Covering 2008 is the reason this section exists: the out-of-sample backtest starts
-    # in 2010 and cannot reach the crisis. A scenario quietly missing here would leave the
-    # report asserting coverage it does not have — which is precisely what happened once.
+    # in 2010 and cannot reach the crisis.
+    #
+    # Asserting mere presence is not enough, and that is not a hypothetical. Under this
+    # fixture's twelve-month estimation window the strategy's own out-of-sample series
+    # begins mid-crisis, so the old broken wiring — slicing that series instead of
+    # replaying raw asset returns — still produced a non-empty gfc_2008 row, just a
+    # truncated one (about 179 observations against the window's true 370). Pinning the
+    # full window length is what actually distinguishes the two implementations.
     for name, scenarios in output.stress.items():
         assert set(scenarios) == set(HISTORICAL_SCENARIOS), name
-        assert scenarios["gfc_2008"]["observations"] > 0, name
+        for scenario, (start, end) in HISTORICAL_SCENARIOS.items():
+            expected = len(pd.bdate_range(start, end))
+            assert scenarios[scenario]["observations"] == expected, (name, scenario)
 
 
 def test_rendering_produces_a_complete_document(output) -> None:

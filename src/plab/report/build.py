@@ -170,10 +170,11 @@ def build_report(
         sections += [
             "<h2>Stress tests</h2>",
             '<p class="note">Counterfactuals: each strategy\'s current allocation applied '
-            "to the realized returns of a historical crisis, held static for the window "
-            "with no rebalancing and no transaction costs — unlike every other figure in "
-            "this report, these are not net of costs. This lets the scenarios reach "
-            "periods, notably 2008, that the out-of-sample backtest itself cannot.</p>",
+            "to the realized returns of a historical crisis, weights held constant "
+            "throughout the window — equivalent to rebalancing back to target daily at no "
+            "cost. Unlike every other figure in this report, these are not net of "
+            "transaction costs. This lets the scenarios reach periods, notably 2008, that "
+            "the out-of-sample backtest itself cannot.</p>",
             _stress_table(stress),
         ]
 
