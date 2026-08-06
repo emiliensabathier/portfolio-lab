@@ -36,7 +36,7 @@ def shrinkage_intensity(returns: pd.DataFrame) -> float:
 
     sample = x.T @ x / n_obs  # maximum-likelihood covariance
     mu = float(np.trace(sample) / n_assets)
-    if mu <= 0.0:
+    if mu <= NUMERICAL_ZERO:
         raise SingularCovarianceError("sample covariance has zero trace")
 
     dispersion = float(np.sum((sample - mu * np.eye(n_assets)) ** 2) / n_assets)
@@ -63,6 +63,12 @@ def ledoit_wolf_covariance(returns: pd.DataFrame) -> pd.DataFrame:
     # Rescale to the unbiased convention used by sample_covariance.
     shrunk *= n_obs / (n_obs - 1)
 
-    if np.any(np.linalg.eigvalsh(shrunk) <= 0):
+    # Unreachable by construction: shrinking a positive-semidefinite sample towards a
+    # positive-definite target with an intensity in (0, 1] and mu > NUMERICAL_ZERO cannot
+    # produce a non-positive-definite result, and the intensity is never exactly zero
+    # because the noise term is never exactly zero. Kept as a guard so that a future
+    # change to the shrinkage formula fails loudly instead of handing a singular matrix
+    # to the optimizers in Tasks 8 and 9.
+    if np.any(np.linalg.eigvalsh(shrunk) <= NUMERICAL_ZERO):  # pragma: no cover
         raise SingularCovarianceError("shrunk covariance is not positive definite")
     return pd.DataFrame(shrunk, index=returns.columns, columns=returns.columns)

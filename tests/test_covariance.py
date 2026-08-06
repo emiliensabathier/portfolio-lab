@@ -94,3 +94,37 @@ def test_degenerate_input_raises_instead_of_returning_a_broken_matrix() -> None:
 
     with pytest.raises(SingularCovarianceError):
         ledoit_wolf_covariance(constant)
+
+
+def test_shrinkage_saturates_when_the_sample_is_mostly_noise() -> None:
+    # At T=8, N=2 the noise term is about ten times the dispersion term, so the
+    # min(noise, dispersion) truncation binds and the intensity clips at exactly 1.0.
+    # This is the only test that exercises that clip: swapping min for max, or reversing
+    # the operands, passes every other test in this file.
+    returns = _iid_returns(8, 2, seed=1)
+
+    assert shrinkage_intensity(returns) == 1.0
+
+    # Full shrinkage means the estimate IS the scaled-identity target: no off-diagonal
+    # term survives and both variances are equal.
+    shrunk = ledoit_wolf_covariance(returns).to_numpy()
+    assert shrunk[0, 1] == 0.0
+    assert shrunk[0, 0] == pytest.approx(shrunk[1, 1])
+
+
+def test_a_sample_already_equal_to_the_target_raises() -> None:
+    # These four rows are centred and give S = 0.5 * I exactly, so the dispersion term
+    # is exactly zero and the shrinkage intensity is undefined rather than merely small.
+    already_the_target = pd.DataFrame(
+        [[1.0, 0.0], [-1.0, 0.0], [0.0, 1.0], [0.0, -1.0]], columns=["A", "B"]
+    )
+
+    with pytest.raises(SingularCovarianceError, match="identity target"):
+        ledoit_wolf_covariance(already_the_target)
+
+
+def test_a_single_observation_raises() -> None:
+    single = pd.DataFrame([[0.01, 0.02]], columns=["A", "B"])
+
+    with pytest.raises(SingularCovarianceError, match="two observations"):
+        ledoit_wolf_covariance(single)
