@@ -84,3 +84,21 @@ def test_expected_shortfall_raises_when_no_observation_breaches_the_threshold() 
 
     with pytest.raises(ValueError, match="beyond the VaR threshold"):
         historical_es(returns, 0.95)
+
+
+def test_cornish_fisher_raises_rather_than_report_a_gain_as_a_loss() -> None:
+    # A genuinely fat-tailed sample (skew ~-0.72, excess kurtosis ~23): at this kurtosis
+    # the quartic correction term overwhelms the linear one and flips the adjusted
+    # quantile positive, which the module's own contract (a VaR is always a positive
+    # loss) forbids. This is the same failure mode observed on the min_variance net
+    # series (skew -1.10, excess kurtosis 24.67) during the whole-branch review.
+    rng = np.random.default_rng(5)
+    body = rng.normal(0.0002, 0.003, 960)
+    neg_shocks = rng.normal(-0.07, 0.015, 25)
+    pos_shocks = rng.normal(0.075, 0.015, 15)
+    values = np.concatenate([body, neg_shocks, pos_shocks])
+    rng.shuffle(values)
+    returns = pd.Series(values)
+
+    with pytest.raises(ValueError, match="skew=.*excess kurtosis="):
+        cornish_fisher_var(returns, 0.90)

@@ -49,4 +49,16 @@ def cornish_fisher_var(returns: pd.Series, level: float = 0.95) -> float:
         + (z**3 - 3.0 * z) * k / 24.0
         - (2.0 * z**3 - 5.0 * z) * s**2 / 36.0
     )
-    return float(-(values.mean() + adjusted * values.std(ddof=1)))
+    result = -(values.mean() + adjusted * values.std(ddof=1))
+    if result <= 0.0:
+        # The truncated expansion is only valid near normality. At high excess kurtosis
+        # the quartic correction term overwhelms the linear one and can flip the adjusted
+        # quantile positive, which this module's own contract (see the module docstring)
+        # forbids: a "loss" must never come out as a gain. Raising rather than reporting
+        # a nonsensical figure matches the project's no-silent-fallback rule.
+        raise ValueError(
+            f"Cornish-Fisher VaR at level {level} is not a positive loss "
+            f"({result:.6f}); the expansion is invalid on this sample "
+            f"(skew={s:.4f}, excess kurtosis={k:.4f})"
+        )
+    return float(result)
