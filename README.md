@@ -6,15 +6,15 @@ Multi-asset portfolio construction, risk analytics and backtesting on a ten-ETF 
 
 ## Results
 
-Out-of-sample, monthly rebalanced, **net of 5 bps transaction costs**, 2010-07 to today.
+Out-of-sample, monthly rebalanced, **net of 5 bps transaction costs**, from 2010-08.
 
 | Strategy | CAGR | Volatility | Sharpe | Max drawdown | Turnover p.a. |
 | --- | --- | --- | --- | --- | --- |
-| 60/40 benchmark | 9.92% | 10.33% | 0.97 | -21.63% | 0.24 |
-| Equal weight | 7.34% | 10.48% | 0.73 | -23.21% | 0.35 |
-| Minimum variance | 3.51% | 4.62% | 0.77 | -15.11% | 0.41 |
-| Risk parity | 5.63% | 8.17% | 0.71 | -20.26% | 0.51 |
-| Maximum Sharpe | 7.55% | 9.09% | 0.85 | -21.15% | 2.07 |
+| 60/40 benchmark | 9.92% | 10.33% | 0.97 | -21.63% | 0.18 |
+| Equal weight | 7.34% | 10.48% | 0.73 | -23.21% | 0.29 |
+| Minimum variance | 3.51% | 4.62% | 0.77 | -15.11% | 0.35 |
+| Risk parity | 5.63% | 8.17% | 0.71 | -20.26% | 0.45 |
+| Maximum Sharpe | 7.55% | 9.09% | 0.85 | -21.15% | 2.02 |
 
 Full report with charts, tail risk and stress tests: [`reports/portfolio.html`](reports/portfolio.html).
 
@@ -68,8 +68,22 @@ Stated because they matter more than the headline numbers.
   Realistic for ten large ETFs at small size, optimistic at scale.
 - **Maximum Sharpe uses in-sample expected returns** and is included precisely to make its
   instability visible next to the other rules, not as a recommendation.
+- **The risk-free rate is zero.** `sharpe_ratio` and `sortino_ratio` accept a `risk_free`
+  argument but nothing in this pipeline passes one, so every published Sharpe and Sortino
+  is a raw return-over-volatility ratio, not a true excess-return ratio. The backtest
+  window includes roughly three years (2022-2025) where cash yielded close to 5%, so the
+  reported ratios overstate risk-adjusted performance relative to a cash benchmark over
+  that period.
 - **Dividends** are handled through adjusted close prices, which assumes reinvestment at
   close with no tax.
+- **The Cornish-Fisher expansion degrades on daily returns with high excess kurtosis.**
+  The correction is a truncated series around the Gaussian quantile; on a fat-tailed
+  sample the quartic kurtosis term can dominate and the reported figure can exceed the
+  empirical (historical) VaR at the same level by 2-3x. Past a kurtosis threshold the
+  expansion leaves its region of validity altogether and the adjusted quantile can flip
+  sign, reporting a gain where the sample clearly has a loss. `cornish_fisher_var` checks
+  for this and raises rather than return a nonsensical figure — it is not, in general, a
+  safe substitute for the historical VaR/ES pair on real portfolio return series.
 
 ## Running it
 
