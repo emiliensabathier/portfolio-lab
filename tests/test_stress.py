@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from plab.risk.stress import HISTORICAL_SCENARIOS, parametric_shock, replay
+from plab.risk.stress import HISTORICAL_SCENARIOS, replay
 
 
 def _returns(start: str, end: str, value: float = -0.001) -> pd.Series:
@@ -65,14 +65,3 @@ def test_replay_raises_when_the_series_does_not_cover_the_window() -> None:
 def test_unknown_scenario_raises() -> None:
     with pytest.raises(KeyError):
         replay(_returns("2007-01-01", "2010-01-01"), "not_a_scenario")
-
-
-def test_parametric_shock_is_the_weighted_sum_of_asset_shocks() -> None:
-    loss = parametric_shock({"SPY": 0.6, "AGG": 0.4}, {"SPY": -0.20, "AGG": -0.05})
-
-    assert loss == pytest.approx(0.6 * -0.20 + 0.4 * -0.05)
-
-
-def test_parametric_shock_rejects_an_unshocked_asset() -> None:
-    with pytest.raises(ValueError, match="GLD"):
-        parametric_shock({"SPY": 0.5, "GLD": 0.5}, {"SPY": -0.20})

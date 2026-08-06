@@ -35,11 +35,3 @@ def replay(returns: pd.Series, scenario: str) -> dict[str, float]:
         "worst_day": float(window.min()),
         "observations": float(len(window)),
     }
-
-
-def parametric_shock(weights: dict[str, float], shocks: dict[str, float]) -> float:
-    """Instantaneous portfolio return under a set of per-asset shocks."""
-    missing = sorted(set(weights) - set(shocks))
-    if missing:
-        raise ValueError(f"no shock specified for {missing}")
-    return float(sum(weight * shocks[ticker] for ticker, weight in weights.items()))
