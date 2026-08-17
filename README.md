@@ -121,6 +121,15 @@ regression test runs the pipeline with it, because pinning a Sharpe measured aga
 while the report shows one measured against cash would go green on numbers nobody
 publishes.
 
+## Related
+
+Three companion studies, same method: a frozen capture, a rendered report, and a
+limitations section longer than the results.
+
+- [rates-lab](https://github.com/emiliensabathier/rates-lab) — what the yield curve prices: policy path, inflation, term premium
+- [valuation-lab](https://github.com/emiliensabathier/valuation-lab) — what a share price already assumes, by inverting a DCF
+- [credit-lab](https://github.com/emiliensabathier/credit-lab) — which default score flags first, against real credit events
+
 ## License
 
 MIT.
