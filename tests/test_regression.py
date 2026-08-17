@@ -18,6 +18,13 @@ def frozen_prices() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="module")
+def frozen_risk_free() -> pd.Series:
+    """The bill series the published ratios are measured against."""
+    frame = pd.read_csv(FIXTURES / "risk_free.csv", index_col=0, parse_dates=True)
+    return frame.iloc[:, 0]
+
+
+@pytest.fixture(scope="module")
 def expected() -> dict[str, dict[str, float]]:
     return json.loads((FIXTURES / "expected_metrics.json").read_text(encoding="utf-8"))
 
@@ -28,9 +35,9 @@ def expected_stress() -> dict[str, dict[str, dict[str, float]]]:
 
 
 @pytest.fixture(scope="module")
-def output(frozen_prices: pd.DataFrame):
-    """Run the pipeline once for the whole module."""
-    return run(frozen_prices, CONFIG)
+def output(frozen_prices: pd.DataFrame, frozen_risk_free: pd.Series):
+    """Run the pipeline once for the whole module, exactly as the report runs it."""
+    return run(frozen_prices, CONFIG, risk_free=frozen_risk_free)
 
 
 def test_the_fixture_covers_the_documented_window(frozen_prices: pd.DataFrame) -> None:
@@ -79,7 +86,10 @@ def test_every_metric_matches_the_frozen_reference(
     output, expected: dict[str, dict[str, float]]
 ) -> None:
     for name, result in output.results.items():
-        actual = summary(result.returns)
+        # The same risk-free the report uses. Calling summary() bare here would pin a
+        # Sharpe against zero while the published page shows one against cash, and the
+        # regression suite would go green on numbers nobody publishes.
+        actual = summary(result.returns, output.risk_free)
         tolerance = TOLERANCE_EXACT if name in EXACT else TOLERANCE_OPTIMIZED
         for metric, reference in expected[name].items():
             assert actual[metric] == pytest.approx(reference, rel=tolerance), (

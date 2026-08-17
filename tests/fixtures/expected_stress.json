@@ -1,102 +1,102 @@
 {
   "60/40": {
     "covid_2020": {
-      "max_drawdown": -0.21717000515319163,
+      "max_drawdown": -0.21717007214922324,
       "observations": 24.0,
-      "total_return": -0.21500621849184398,
-      "worst_day": -0.07341060278826744
+      "total_return": -0.21500635088273612,
+      "worst_day": -0.07341027758257715
     },
     "gfc_2008": {
-      "max_drawdown": -0.3470331344066998,
+      "max_drawdown": -0.3470332028168157,
       "observations": 356.0,
-      "total_return": -0.34389387075641487,
-      "worst_day": -0.05266850431388545
+      "total_return": -0.3438937598710694,
+      "worst_day": -0.0526691991954149
     },
     "rates_2022": {
-      "max_drawdown": -0.20194588852515094,
+      "max_drawdown": -0.2019458092727805,
       "observations": 196.0,
-      "total_return": -0.20135602322680346,
-      "worst_day": -0.029338498022108396
+      "total_return": -0.2013560264098787,
+      "worst_day": -0.02933822899250187
     }
   },
   "equal_weight": {
     "covid_2020": {
-      "max_drawdown": -0.23044142939170253,
+      "max_drawdown": -0.23044148169096135,
       "observations": 24.0,
-      "total_return": -0.2267768581444497,
-      "worst_day": -0.06925671200899469
+      "total_return": -0.22677677557093845,
+      "worst_day": -0.06925660345212885
     },
     "gfc_2008": {
-      "max_drawdown": -0.38217818289560535,
+      "max_drawdown": -0.38217794381271375,
       "observations": 356.0,
-      "total_return": -0.3363413914294987,
-      "worst_day": -0.06349608710192196
+      "total_return": -0.3363413057948016,
+      "worst_day": -0.06349609251996953
     },
     "rates_2022": {
-      "max_drawdown": -0.19084819525503305,
+      "max_drawdown": -0.19084821972548904,
       "observations": 196.0,
-      "total_return": -0.18827769805299865,
-      "worst_day": -0.03219121996477588
+      "total_return": -0.1882776872588282,
+      "worst_day": -0.03219124039147537
     }
   },
   "max_sharpe": {
     "covid_2020": {
-      "max_drawdown": -0.1638467356932375,
+      "max_drawdown": -0.16384683364954444,
       "observations": 24.0,
-      "total_return": -0.13357490986929144,
-      "worst_day": -0.057686914937514294
+      "total_return": -0.1335751965925116,
+      "worst_day": -0.057686835964288065
     },
     "gfc_2008": {
-      "max_drawdown": -0.2922291936833379,
+      "max_drawdown": -0.2922291135727355,
       "observations": 356.0,
-      "total_return": -0.06278873582003675,
-      "worst_day": -0.06777263087195023
+      "total_return": -0.06278907046674453,
+      "worst_day": -0.06777255745988733
     },
     "rates_2022": {
-      "max_drawdown": -0.17741812205208385,
+      "max_drawdown": -0.17741805213433182,
       "observations": 196.0,
-      "total_return": -0.13406116033481674,
-      "worst_day": -0.0300990591319091
+      "total_return": -0.13406129256373644,
+      "worst_day": -0.030099014505522537
     }
   },
   "min_variance": {
     "covid_2020": {
-      "max_drawdown": -0.11497998988604863,
+      "max_drawdown": -0.11497996702407853,
       "observations": 24.0,
-      "total_return": -0.08093351659749459,
-      "worst_day": -0.040005283708867606
+      "total_return": -0.08093418089783788,
+      "worst_day": -0.04000510941457747
     },
     "gfc_2008": {
-      "max_drawdown": -0.17581480154153484,
+      "max_drawdown": -0.1758162035083991,
       "observations": 356.0,
-      "total_return": -0.045255318368715214,
-      "worst_day": -0.06565442391705859
+      "total_return": -0.04525695316609113,
+      "worst_day": -0.06565482631144895
     },
     "rates_2022": {
-      "max_drawdown": -0.12008633946195002,
+      "max_drawdown": -0.12008646104465293,
       "observations": 196.0,
-      "total_return": -0.1145037529513222,
-      "worst_day": -0.019166553333613254
+      "total_return": -0.11450363157290089,
+      "worst_day": -0.01916639294624629
     }
   },
   "risk_parity": {
     "covid_2020": {
-      "max_drawdown": -0.19148646165677796,
+      "max_drawdown": -0.19148660590583877,
       "observations": 24.0,
-      "total_return": -0.17773490033610084,
-      "worst_day": -0.05652921445254819
+      "total_return": -0.17773493730147938,
+      "worst_day": -0.056529164967307116
     },
     "gfc_2008": {
-      "max_drawdown": -0.31506356996493456,
+      "max_drawdown": -0.31506365623397214,
       "observations": 356.0,
-      "total_return": -0.2363094147834256,
-      "worst_day": -0.04478177278848576
+      "total_return": -0.23630967534227998,
+      "worst_day": -0.04478192365592651
     },
     "rates_2022": {
-      "max_drawdown": -0.16763087449741065,
+      "max_drawdown": -0.16763101878802333,
       "observations": 196.0,
-      "total_return": -0.16311869869382256,
-      "worst_day": -0.02865883193456339
+      "total_return": -0.16311872979883624,
+      "worst_day": -0.028658832600754292
     }
   }
 }

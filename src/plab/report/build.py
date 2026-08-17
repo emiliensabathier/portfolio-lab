@@ -46,13 +46,38 @@ def _num(value: float) -> str:
     return f"{value:.2f}"
 
 
+def _rate_or_zero(risk_free: pd.Series | None) -> pd.Series | float:
+    return 0.0 if risk_free is None else risk_free
+
+
+def _risk_free_note(risk_free: pd.Series | None) -> str:
+    """State what the ratios are measured against, next to the ratios themselves."""
+    if risk_free is None:
+        return (
+            "<p class='note'><strong>Sharpe and Sortino are measured against zero.</strong> "
+            "No riskless series was supplied, so both are raw return-over-risk readings "
+            "rather than excess-return ratios.</p>"
+        )
+    average = float(risk_free.mean())
+    low, high = float(risk_free.min()), float(risk_free.max())
+    return (
+        "<p class='note'>Sharpe and Sortino are measured against the thirteen-week "
+        f"Treasury bill, which averaged {_pct(average)} over this window and ranged from "
+        f"{_pct(low)} to {_pct(high)}. The bill is the Sharpe's excess-return base and the "
+        "Sortino's minimum acceptable return, so a strategy that failed to beat cash "
+        "scores below zero on both.</p>"
+    )
+
+
 def _performance_table(
-    results: dict[str, BacktestResult], benchmark: str | None = None
+    results: dict[str, BacktestResult],
+    benchmark: str | None = None,
+    risk_free: pd.Series | float = 0.0,
 ) -> str:
     reference = results[benchmark].returns if benchmark in results else None
     rows = []
     for name, result in results.items():
-        stats = summary(result.returns)
+        stats = summary(result.returns, risk_free)
         row = [
             name,
             _pct(stats["cagr"]),
@@ -139,6 +164,7 @@ def build_report(
     *,
     benchmark: str | None = None,
     bloc_attribution: dict[str, pd.DataFrame] | None = None,
+    risk_free: pd.Series | None = None,
 ) -> str:
     """Render the whole report as one self-contained HTML document."""
     if not results:
@@ -160,7 +186,8 @@ def build_report(
         f'<p class="note">Out-of-sample {start} to {end}. All figures are '
         f"net of transaction costs. Generated on {html_escape.escape(generated_on)}.</p>",
         "<h2>Performance and risk</h2>",
-        _performance_table(results, benchmark),
+        _performance_table(results, benchmark, _rate_or_zero(risk_free)),
+        _risk_free_note(risk_free),
         "<h2>Growth of capital</h2>",
         wealth_chart(series),
         "<h2>Drawdowns</h2>",

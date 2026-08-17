@@ -7,14 +7,22 @@ Multi-asset portfolio construction, risk analytics and backtesting on a ten-ETF 
 ## Results
 
 Out-of-sample, monthly rebalanced, **net of 5 bps transaction costs**, from 2010-08.
+Sharpe and Sortino are **excess of the thirteen-week Treasury bill**, which averaged 1.54%
+over this window and ranged from -0.11% to 5.50%.
 
-| Strategy | CAGR | Volatility | Sharpe | Max drawdown | Turnover p.a. |
-| --- | --- | --- | --- | --- | --- |
-| 60/40 benchmark | 9.92% | 10.33% | 0.97 | -21.63% | 0.18 |
-| Equal weight | 7.34% | 10.48% | 0.73 | -23.21% | 0.29 |
-| Minimum variance | 3.51% | 4.62% | 0.77 | -15.11% | 0.35 |
-| Risk parity | 5.63% | 8.17% | 0.71 | -20.26% | 0.45 |
-| Maximum Sharpe | 7.55% | 9.09% | 0.85 | -21.15% | 2.02 |
+| Strategy | CAGR | Volatility | Sharpe | Sortino | Max drawdown | Turnover p.a. |
+| --- | --- | --- | --- | --- | --- | --- |
+| 60/40 benchmark | 9.93% | 10.32% | 0.82 | 1.15 | -21.63% | 0.18 |
+| Equal weight | 7.40% | 10.47% | 0.59 | 0.82 | -23.21% | 0.29 |
+| Minimum variance | 3.53% | 4.61% | 0.44 | 0.61 | -15.11% | 0.35 |
+| Risk parity | 5.68% | 8.17% | 0.53 | 0.74 | -20.26% | 0.45 |
+| Maximum Sharpe | 7.61% | 9.08% | 0.68 | 0.95 | -21.15% | 2.02 |
+
+Not one of the four rules beats a static 60/40 on risk-adjusted return, and measuring
+against cash rather than against zero is what makes that legible: it costs every strategy
+between 0.14 and 0.33 of Sharpe, and it costs the low-volatility rules most, because a
+minimum-variance book earning 3.53% while bills paid 1.54% has given up most of its edge
+to the riskless leg.
 
 Full report with charts, tail risk and stress tests: [`reports/portfolio.html`](reports/portfolio.html).
 
@@ -68,12 +76,11 @@ Stated because they matter more than the headline numbers.
   Realistic for ten large ETFs at small size, optimistic at scale.
 - **Maximum Sharpe uses in-sample expected returns** and is included precisely to make its
   instability visible next to the other rules, not as a recommendation.
-- **The risk-free rate is zero.** `sharpe_ratio` and `sortino_ratio` accept a `risk_free`
-  argument but nothing in this pipeline passes one, so every published Sharpe and Sortino
-  is a raw return-over-volatility ratio, not a true excess-return ratio. The backtest
-  window includes roughly three years (2022-2025) where cash yielded close to 5%, so the
-  reported ratios overstate risk-adjusted performance relative to a cash benchmark over
-  that period.
+- **The riskless leg is the thirteen-week bill, and it is a bill, not the funding rate any
+  particular investor faces.** `^IRX` is quoted on a bank-discount basis; `cash.py` converts
+  it once to the bond-equivalent yield, which is the number an investor earns on the price
+  paid, so the conversion is removed rather than disclosed. What remains disclosed: a real
+  book funds at a spread to bills, not at bills, and no such spread is modelled here.
 - **Dividends** are handled through adjusted close prices, which assumes reinvestment at
   close with no tax.
 - **The Cornish-Fisher expansion degrades on daily returns with high excess kurtosis.**
@@ -102,7 +109,10 @@ Prices are cached under `cache/`; pass `--refresh` to re-download.
 ```
 
 The suite runs offline against a frozen price fixture, so the published numbers are
-reproducible without network access.
+reproducible without network access. The bill series is frozen alongside the prices and the
+regression test runs the pipeline with it, because pinning a Sharpe measured against zero
+while the report shows one measured against cash would go green on numbers nobody
+publishes.
 
 ## License
 

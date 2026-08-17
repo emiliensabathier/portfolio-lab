@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 from plab.backtest.engine import BacktestConfig
+from plab.cash import load_risk_free
 from plab.data.loader import load_prices
 from plab.pipeline import run
 from plab.risk.metrics import summary
@@ -25,9 +26,16 @@ def main() -> None:
     )
     prices.to_csv(FIXTURES / "prices.csv")
 
-    output = run(prices, CONFIG)
+    # The bill series is frozen alongside the prices, because the published Sharpe and
+    # Sortino are measured against it. Freezing the prices alone would pin every figure
+    # except the two the ratios actually depend on.
+    risk_free = load_risk_free(CORE_START, "2024-12-31", cache_dir=Path("cache"))
+    risk_free.to_csv(FIXTURES / "risk_free.csv")
+
+    output = run(prices, CONFIG, risk_free=risk_free)
     expected = {
-        name: summary(result.returns) for name, result in output.results.items()
+        name: summary(result.returns, output.risk_free)
+        for name, result in output.results.items()
     }
     (FIXTURES / "expected_metrics.json").write_text(
         json.dumps(expected, indent=2, sort_keys=True), encoding="utf-8"

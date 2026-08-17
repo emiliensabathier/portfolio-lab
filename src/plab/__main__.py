@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from plab.backtest.engine import BacktestConfig
+from plab.cash import load_risk_free
 from plab.data.loader import load_prices
 from plab.pipeline import render, run
 from plab.universe import CORE_START, ETF_CORE, tickers
@@ -27,10 +28,13 @@ def main() -> None:
         cache_dir=Path(args.cache_dir),
         refresh=args.refresh,
     )
+    risk_free = load_risk_free(
+        CORE_START, cache_dir=Path(args.cache_dir), refresh=args.refresh
+    )
     config = BacktestConfig(
         estimation_months=args.estimation_months, cost_bps=args.cost_bps
     )
-    output = run(prices, config)
+    output = run(prices, config, risk_free=risk_free)
     html = render(output, generated_on=datetime.now(UTC).date().isoformat())
 
     destination = Path(args.output)

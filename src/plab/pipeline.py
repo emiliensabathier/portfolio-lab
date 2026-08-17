@@ -8,6 +8,7 @@ import pandas as pd
 
 from plab.alloc.rules import equal_weight, fixed_weights, max_sharpe, min_variance, risk_parity
 from plab.backtest.engine import BacktestConfig, BacktestResult, Strategy, run_backtest
+from plab.cash import align as align_risk_free
 from plab.report.build import build_report
 from plab.returns import simple_returns
 from plab.risk.attribution import bloc_contribution, return_contribution, risk_contribution
@@ -35,9 +36,14 @@ class PipelineOutput:
     risk_shares: dict[str, pd.Series]
     stress: dict[str, dict[str, dict[str, float]]]
     bloc_attribution: dict[str, pd.DataFrame]
+    risk_free: pd.Series | None = None
 
 
-def run(prices: pd.DataFrame, config: BacktestConfig) -> PipelineOutput:
+def run(
+    prices: pd.DataFrame,
+    config: BacktestConfig,
+    risk_free: pd.Series | None = None,
+) -> PipelineOutput:
     """Backtest every declared strategy and derive its attribution and stress outcomes."""
     results: dict[str, BacktestResult] = {}
     risk_shares: dict[str, pd.Series] = {}
@@ -46,10 +52,16 @@ def run(prices: pd.DataFrame, config: BacktestConfig) -> PipelineOutput:
 
     asset_returns = simple_returns(prices)
     covariance = ledoit_wolf_covariance(asset_returns.tail(config.estimation_months * 21))
+    aligned_risk_free: pd.Series | None = None
 
     for name, strategy in STRATEGIES.items():
         result = run_backtest(prices, strategy, config)
         results[name] = result
+        if risk_free is not None and aligned_risk_free is None:
+            # Every strategy shares one out-of-sample window, so the bill series is put on
+            # that calendar once. Aligning per strategy would repeat the work and invite
+            # the two to drift apart.
+            aligned_risk_free = align_risk_free(risk_free, result.returns.index)
 
         final = result.weights.iloc[-1]
         contributions = risk_contribution(final.to_dict(), covariance)
@@ -81,6 +93,7 @@ def run(prices: pd.DataFrame, config: BacktestConfig) -> PipelineOutput:
         risk_shares=risk_shares,
         stress=stress,
         bloc_attribution=bloc_attribution,
+        risk_free=aligned_risk_free,
     )
 
 
@@ -93,4 +106,5 @@ def render(output: PipelineOutput, generated_on: str) -> str:
         generated_on=generated_on,
         benchmark=BENCHMARK,
         bloc_attribution=output.bloc_attribution,
+        risk_free=output.risk_free,
     )
