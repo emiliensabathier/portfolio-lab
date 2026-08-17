@@ -24,6 +24,13 @@ between 0.14 and 0.33 of Sharpe, and it costs the low-volatility rules most, bec
 minimum-variance book earning 3.53% while bills paid 1.54% has given up most of its edge
 to the riskless leg.
 
+![Growth of one unit of capital, net of costs, for each strategy against the 60/40 benchmark](docs/growth-of-capital.png)
+
+The benchmark is the top line and it is not close. That is the result: four textbook
+allocation rules, each of them defensible, none of them beating the simplest possible
+portfolio over this window. The chart is drawn from the frozen fixture, which ends
+2024-12-30, so it stops earlier than the live table above.
+
 Full report with charts, tail risk and stress tests: [`reports/portfolio.html`](reports/portfolio.html).
 
 These figures come from a live run and will drift as more history accumulates.

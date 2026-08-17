@@ -35,13 +35,23 @@ def _new_figure(title: str, ylabel: str) -> tuple[Figure, object]:
     return fig, axes
 
 
-def wealth_chart(series_by_name: dict[str, pd.Series]) -> str:
-    """Cumulative growth of one unit of capital, net of costs."""
+def wealth_figure(series_by_name: dict[str, pd.Series]) -> Figure:
+    """Cumulative growth of one unit of capital, net of costs.
+
+    Returned as a figure rather than as markup, because the README needs the same chart as
+    a raster: GitHub shows a committed HTML report as source, so the one picture that makes
+    the point has to travel separately.
+    """
     fig, axes = _new_figure("Growth of 1 unit (net of costs)", "Wealth")
     for name, returns in series_by_name.items():
         axes.plot((1.0 + returns).cumprod(), label=name, linewidth=1.2)
     axes.legend(loc="upper left", frameon=False)
-    return figure_to_svg(fig)
+    return fig
+
+
+def wealth_chart(series_by_name: dict[str, pd.Series]) -> str:
+    """The wealth chart as inline SVG, for the report."""
+    return figure_to_svg(wealth_figure(series_by_name))
 
 
 def drawdown_chart(series_by_name: dict[str, pd.Series]) -> str:
