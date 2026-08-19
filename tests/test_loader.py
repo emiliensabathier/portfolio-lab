@@ -113,3 +113,23 @@ def test_a_gappy_series_is_never_written_to_the_cache(tmp_path: Path) -> None:
     # run would read the poisoned cache and fail identically, with no signal that
     # refresh=True is what unblocks it.
     assert list(tmp_path.glob("SPY.*")) == []
+
+
+def test_the_gap_error_names_the_dates_and_the_remedy(tmp_path: Path) -> None:
+    """The only remedy is a shorter window, and the caller cannot pick one without being
+    told where the panel breaks. Upstream holes are real: Yahoo served July 2026 with a
+    session missing for AGG and a different one missing for VNQ."""
+    fetcher = RecordingFetcher(
+        _frame(
+            ["2020-01-02", "2020-01-03", "2020-01-06"],
+            {"SPY": [100.0, float("nan"), 101.0]},
+        )
+    )
+
+    with pytest.raises(DataError) as excinfo:
+        load_prices(["SPY"], "2020-01-01", "2020-01-31",
+                    cache_dir=tmp_path, fetcher=fetcher)
+
+    message = str(excinfo.value)
+    assert "2020-01-03" in message
+    assert "--end" in message

@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from plab.cash import align, bond_equivalent_yield
+from plab.cash import CASH_TICKER, align, bond_equivalent_yield, fred_fetcher
 from plab.errors import DataError
 from plab.risk.metrics import sharpe_ratio
 
@@ -82,3 +82,54 @@ def test_a_return_date_with_no_rate_raises_rather_than_shortening_the_sample():
     rate = pd.Series([0.02] * 9, index=index[:9])
     with pytest.raises(ValueError, match="no risk-free quote"):
         sharpe_ratio(returns, rate)
+
+
+def _fred_csv(rows: str) -> "pd.DataFrame":
+    from io import StringIO
+
+    return pd.read_csv(StringIO(rows), index_col=0, parse_dates=[0])
+
+
+def test_a_day_fred_marks_as_missing_is_dropped_rather_than_filled(monkeypatch):
+    """FRED writes '.' for a day with no observation. A dropped day is a day align can
+    carry forward as accrual; a filled one would be a rate nobody quoted."""
+    csv = "observation_date,DTB3\n2020-01-02,1.52\n2020-01-03,.\n2020-01-06,1.54\n"
+    served = _fred_csv(csv)  # parsed before pd.read_csv is replaced, or the fake recurses
+    monkeypatch.setattr(pd, "read_csv", lambda *args, **kwargs: served)
+    frame = fred_fetcher([CASH_TICKER], "2020-01-01", None)
+    assert list(frame.index.date.astype(str)) == ["2020-01-02", "2020-01-06"]
+    assert frame[CASH_TICKER].tolist() == [1.52, 1.54]
+
+
+def test_the_requested_window_is_applied_because_fred_ignores_it(monkeypatch):
+    """The CSV endpoint serves the whole history whatever dates are asked for, so a run
+    given --end must be cut here or the bill would outrun the prices."""
+    csv = "observation_date,DTB3\n2019-12-31,1.51\n2020-01-02,1.52\n2020-01-06,1.54\n"
+    served = _fred_csv(csv)  # parsed before pd.read_csv is replaced, or the fake recurses
+    monkeypatch.setattr(pd, "read_csv", lambda *args, **kwargs: served)
+    frame = fred_fetcher([CASH_TICKER], "2020-01-01", "2020-01-03")
+    assert frame[CASH_TICKER].tolist() == [1.52]
+
+
+def test_a_window_with_no_observations_is_refused(monkeypatch):
+    csv = "observation_date,DTB3\n2020-01-02,1.52\n"
+    served = _fred_csv(csv)  # parsed before pd.read_csv is replaced, or the fake recurses
+    monkeypatch.setattr(pd, "read_csv", lambda *args, **kwargs: served)
+    with pytest.raises(DataError, match="no observations"):
+        fred_fetcher([CASH_TICKER], "2021-01-01", "2021-12-31")
+
+
+def test_the_fred_fetcher_refuses_a_batch():
+    """One series per URL is what the endpoint offers; a silent partial fetch would be
+    worse than the refusal."""
+    with pytest.raises(DataError, match="one series at a time"):
+        fred_fetcher([CASH_TICKER, "DGS10"], "2020-01-01", None)
+
+
+@pytest.mark.network
+def test_fred_serves_the_whole_backtest_window():
+    """The reason the source moved off Yahoo: the bill has to cover the sample, and
+    ^IRX arrives with about a month of history."""
+    frame = fred_fetcher([CASH_TICKER], "2007-07-02", None)
+    assert frame.index[0].year == 2007
+    assert len(frame) > 4000

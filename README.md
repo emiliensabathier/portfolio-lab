@@ -83,11 +83,13 @@ Stated because they matter more than the headline numbers.
   Realistic for ten large ETFs at small size, optimistic at scale.
 - **Maximum Sharpe uses in-sample expected returns** and is included precisely to make its
   instability visible next to the other rules, not as a recommendation.
-- **The riskless leg is the thirteen-week bill, and it is a bill, not the funding rate any
-  particular investor faces.** `^IRX` is quoted on a bank-discount basis; `cash.py` converts
-  it once to the bond-equivalent yield, which is the number an investor earns on the price
-  paid, so the conversion is removed rather than disclosed. What remains disclosed: a real
-  book funds at a spread to bills, not at bills, and no such spread is modelled here.
+- **The riskless leg is the three-month bill, and it is a bill, not the funding rate any
+  particular investor faces.** FRED's `DTB3` is quoted on a bank-discount basis; `cash.py`
+  converts it once to the bond-equivalent yield, which is the number an investor earns on
+  the price paid, so the conversion is removed rather than disclosed. What remains
+  disclosed: a real book funds at a spread to bills, not at bills, and no such spread is
+  modelled here. The series was `^IRX` until Yahoo began serving it with about a month of
+  history, which is not enough to cover a backtest that starts in 2007.
 - **Dividends** are handled through adjusted close prices, which assumes reinvestment at
   close with no tax.
 - **The Cornish-Fisher expansion degrades on daily returns with high excess kurtosis.**
@@ -108,6 +110,17 @@ python -m venv .venv
 ```
 
 Prices are cached under `cache/`; pass `--refresh` to re-download.
+
+The price panel comes from a vendor whose recent tail is sometimes incomplete: a session
+can be missing for one ETF and present for the rest, and July 2026 had three such days
+across AGG, DBC, EEM, EFA, HYG and VNQ. Nothing is forward-filled to paper over it, so the
+run refuses and names the dates. Pass `--end` to run on the intact history instead:
+
+```bash
+.venv/bin/python -m plab --end 2026-07-20 --output reports/portfolio.html
+```
+
+The flag cuts the bill series to the same window, so the two never drift apart.
 
 ## Tests
 

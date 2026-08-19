@@ -114,8 +114,11 @@ def load_prices(
             # upstream outage permanent: every later run reads the poisoned cache and
             # fails identically, with no way for the caller to know refresh=True is needed.
             if series.isna().any():
+                gaps = series.index[series.isna()]
                 raise DataError(
-                    f"missing observations for {ticker}; refusing to cache or fill gaps"
+                    f"missing observations for {ticker} on {len(gaps)} session(s), "
+                    f"{gaps[0].date()} to {gaps[-1].date()}; refusing to cache or fill gaps. "
+                    f"Pass --end before {gaps[0].date()} to run on the intact history."
                 )
             _write_cache(cache_dir, ticker, series, start, end)
             cached[ticker] = series
@@ -131,5 +134,12 @@ def load_prices(
     # series that came from the cache rather than the fetcher.
     incomplete = prices.columns[prices.isna().any()].tolist()
     if incomplete:
-        raise DataError(f"missing observations for {incomplete}; refusing to fill gaps")
+        # The dates are named because the caller's only remedy is to ask for a shorter
+        # window, and it cannot choose one without knowing where the panel breaks.
+        gaps = prices.index[prices.isna().any(axis=1)]
+        raise DataError(
+            f"missing observations for {incomplete} on {len(gaps)} session(s), "
+            f"{gaps[0].date()} to {gaps[-1].date()}; refusing to fill gaps. "
+            f"Pass --end before {gaps[0].date()} to run on the intact history."
+        )
     return prices
