@@ -18,6 +18,13 @@ def main() -> None:
     parser.add_argument("--output", default="reports/portfolio.html")
     parser.add_argument("--cache-dir", default="cache")
     parser.add_argument("--refresh", action="store_true", help="ignore the cached prices")
+    # An upstream tail can be incomplete for days after the fact: a missing close on a
+    # recent session makes the loader refuse the whole run, correctly, and there is
+    # otherwise no way to ask for the history that is intact. Applies to the bill series
+    # as well as to the prices, so the two stay on the same window.
+    parser.add_argument(
+        "--end", default=None, help="last date to load, ISO format (default: latest available)"
+    )
     parser.add_argument("--cost-bps", type=float, default=5.0)
     parser.add_argument("--estimation-months", type=int, default=36)
     args = parser.parse_args()
@@ -25,11 +32,12 @@ def main() -> None:
     prices = load_prices(
         tickers(ETF_CORE),
         CORE_START,
+        end=args.end,
         cache_dir=Path(args.cache_dir),
         refresh=args.refresh,
     )
     risk_free = load_risk_free(
-        CORE_START, cache_dir=Path(args.cache_dir), refresh=args.refresh
+        CORE_START, end=args.end, cache_dir=Path(args.cache_dir), refresh=args.refresh
     )
     config = BacktestConfig(
         estimation_months=args.estimation_months, cost_bps=args.cost_bps
