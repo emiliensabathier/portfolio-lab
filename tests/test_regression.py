@@ -92,6 +92,4 @@ def test_every_metric_matches_the_frozen_reference(
         actual = summary(result.returns, output.risk_free)
         tolerance = TOLERANCE_EXACT if name in EXACT else TOLERANCE_OPTIMIZED
         for metric, reference in expected[name].items():
-            assert actual[metric] == pytest.approx(reference, rel=tolerance), (
-                f"{name}.{metric}"
-            )
+            assert actual[metric] == pytest.approx(reference, rel=tolerance), f"{name}.{metric}"

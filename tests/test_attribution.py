@@ -54,9 +54,7 @@ def test_return_contribution_raises_when_a_weighted_date_has_no_returns() -> Non
 
 
 def test_risk_contributions_sum_to_portfolio_volatility() -> None:
-    cov = pd.DataFrame(
-        [[0.04, 0.01], [0.01, 0.09]], index=["A", "B"], columns=["A", "B"]
-    )
+    cov = pd.DataFrame([[0.04, 0.01], [0.01, 0.09]], index=["A", "B"], columns=["A", "B"])
     weights = {"A": 0.6, "B": 0.4}
 
     contributions = risk_contribution(weights, cov)
@@ -67,9 +65,7 @@ def test_risk_contributions_sum_to_portfolio_volatility() -> None:
 
 
 def test_the_volatile_asset_carries_more_risk_than_its_weight_suggests() -> None:
-    cov = pd.DataFrame(
-        [[0.01, 0.0], [0.0, 0.25]], index=["calm", "wild"], columns=["calm", "wild"]
-    )
+    cov = pd.DataFrame([[0.01, 0.0], [0.0, 0.25]], index=["calm", "wild"], columns=["calm", "wild"])
 
     contributions = risk_contribution({"calm": 0.5, "wild": 0.5}, cov)
     shares = contributions / contributions.sum()
@@ -80,9 +76,7 @@ def test_the_volatile_asset_carries_more_risk_than_its_weight_suggests() -> None
 def test_risk_contribution_raises_on_a_riskless_portfolio() -> None:
     # The guard this task exists to enforce: with zero portfolio volatility the Euler
     # decomposition divides by zero, so contributions are undefined rather than zero.
-    covariance = pd.DataFrame(
-        [[0.0, 0.0], [0.0, 0.0]], index=["A", "B"], columns=["A", "B"]
-    )
+    covariance = pd.DataFrame([[0.0, 0.0], [0.0, 0.0]], index=["A", "B"], columns=["A", "B"])
 
     with pytest.raises(ValueError, match="undefined"):
         risk_contribution({"A": 0.5, "B": 0.5}, covariance)

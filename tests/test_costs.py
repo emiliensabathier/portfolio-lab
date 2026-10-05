@@ -69,9 +69,7 @@ def test_no_trade_band_suppresses_a_rebalance_smaller_than_the_band() -> None:
     unbanded = run_backtest(
         prices, constant, BacktestConfig(estimation_months=6, no_trade_band=0.0)
     )
-    banded = run_backtest(
-        prices, constant, BacktestConfig(estimation_months=6, no_trade_band=0.5)
-    )
+    banded = run_backtest(prices, constant, BacktestConfig(estimation_months=6, no_trade_band=0.5))
 
     # Monthly drift is worth about 0.011 of turnover per rebalance: a 0.5 band swallows
     # every one, a zero band trades on every one.
@@ -108,9 +106,11 @@ def test_costs_reduce_performance_on_a_real_looking_series() -> None:
     levels = 100.0 * np.exp(np.cumsum(rng.normal(0.0004, 0.01, (800, 2)), axis=0))
     prices = pd.DataFrame(levels, index=index, columns=["A", "B"])
 
-    free = run_backtest(prices, _alternating_strategy(),
-                        BacktestConfig(estimation_months=6, cost_bps=0.0))
-    charged = run_backtest(prices, _alternating_strategy(),
-                           BacktestConfig(estimation_months=6, cost_bps=25.0))
+    free = run_backtest(
+        prices, _alternating_strategy(), BacktestConfig(estimation_months=6, cost_bps=0.0)
+    )
+    charged = run_backtest(
+        prices, _alternating_strategy(), BacktestConfig(estimation_months=6, cost_bps=25.0)
+    )
 
     assert charged.returns.sum() < free.returns.sum()

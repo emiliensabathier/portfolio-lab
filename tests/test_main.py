@@ -50,9 +50,7 @@ def test_main_writes_an_html_report_to_the_requested_output(
     # last year of the 16-year synthetic history, keeping the SLSQP-backed strategies
     # (min_variance, risk_parity, max_sharpe) fast, while the full history still overlaps
     # every historical stress scenario the pipeline replays.
-    monkeypatch.setattr(
-        "sys.argv", ["plab", "--output", str(output), "--estimation-months", "180"]
-    )
+    monkeypatch.setattr("sys.argv", ["plab", "--output", str(output), "--estimation-months", "180"])
 
     main_module.main()
 

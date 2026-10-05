@@ -12,9 +12,7 @@ import pandas as pd
 from plab.risk.metrics import NUMERICAL_ZERO
 
 
-def return_contribution(
-    weights: pd.DataFrame, asset_returns: pd.DataFrame
-) -> pd.Series:
+def return_contribution(weights: pd.DataFrame, asset_returns: pd.DataFrame) -> pd.Series:
     """Total return contributed by each asset over the whole period.
 
     Raises when the returns do not cover every weighted date and ticker. Reindexing alone

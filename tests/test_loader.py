@@ -34,17 +34,16 @@ def test_load_prices_returns_requested_tickers(tmp_path: Path) -> None:
         _frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, 101.0], "AGG": [50.0, 50.5]})
     )
 
-    prices = load_prices(["SPY", "AGG"], "2020-01-01", "2020-01-31",
-                         cache_dir=tmp_path, fetcher=fetcher)
+    prices = load_prices(
+        ["SPY", "AGG"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher
+    )
 
     assert list(prices.columns) == ["SPY", "AGG"]
     assert prices.loc["2020-01-03", "SPY"] == 101.0
 
 
 def test_second_call_uses_cache(tmp_path: Path) -> None:
-    fetcher = RecordingFetcher(
-        _frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, 101.0]})
-    )
+    fetcher = RecordingFetcher(_frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, 101.0]}))
 
     load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
     load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
@@ -53,13 +52,12 @@ def test_second_call_uses_cache(tmp_path: Path) -> None:
 
 
 def test_refresh_bypasses_cache(tmp_path: Path) -> None:
-    fetcher = RecordingFetcher(
-        _frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, 101.0]})
-    )
+    fetcher = RecordingFetcher(_frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, 101.0]}))
 
     load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
-    load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path,
-                refresh=True, fetcher=fetcher)
+    load_prices(
+        ["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, refresh=True, fetcher=fetcher
+    )
 
     assert fetcher.calls == 2
 
@@ -68,24 +66,18 @@ def test_missing_ticker_raises(tmp_path: Path) -> None:
     fetcher = RecordingFetcher(_frame(["2020-01-02"], {"SPY": [100.0]}))
 
     with pytest.raises(DataError, match="GHOST"):
-        load_prices(["GHOST"], "2020-01-01", "2020-01-31",
-                    cache_dir=tmp_path, fetcher=fetcher)
+        load_prices(["GHOST"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
 
 
 def test_gap_in_series_raises_instead_of_filling(tmp_path: Path) -> None:
-    fetcher = RecordingFetcher(
-        _frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, float("nan")]})
-    )
+    fetcher = RecordingFetcher(_frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, float("nan")]}))
 
     with pytest.raises(DataError, match="missing"):
-        load_prices(["SPY"], "2020-01-01", "2020-01-31",
-                    cache_dir=tmp_path, fetcher=fetcher)
+        load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
 
 
 def test_a_stale_cache_entry_triggers_a_refetch(tmp_path: Path) -> None:
-    fetcher = RecordingFetcher(
-        _frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, 101.0]})
-    )
+    fetcher = RecordingFetcher(_frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, 101.0]}))
     load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
 
     # Hand-write a sidecar whose fetched_at is well past the staleness threshold, as if
@@ -101,13 +93,10 @@ def test_a_stale_cache_entry_triggers_a_refetch(tmp_path: Path) -> None:
 
 
 def test_a_gappy_series_is_never_written_to_the_cache(tmp_path: Path) -> None:
-    fetcher = RecordingFetcher(
-        _frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, float("nan")]})
-    )
+    fetcher = RecordingFetcher(_frame(["2020-01-02", "2020-01-03"], {"SPY": [100.0, float("nan")]}))
 
     with pytest.raises(DataError):
-        load_prices(["SPY"], "2020-01-01", "2020-01-31",
-                    cache_dir=tmp_path, fetcher=fetcher)
+        load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
 
     # Caching an incomplete series would make a transient outage permanent: the next
     # run would read the poisoned cache and fail identically, with no signal that
@@ -117,8 +106,8 @@ def test_a_gappy_series_is_never_written_to_the_cache(tmp_path: Path) -> None:
 
 def test_the_gap_error_names_the_dates_and_the_remedy(tmp_path: Path) -> None:
     """The only remedy is a shorter window, and the caller cannot pick one without being
-    told where the panel breaks. Upstream holes are real: Yahoo served July 2026 with a
-    session missing for AGG and a different one missing for VNQ."""
+    told where the panel breaks. A vendor can serve a session for some tickers and not
+    for others, and nothing upstream says which."""
     fetcher = RecordingFetcher(
         _frame(
             ["2020-01-02", "2020-01-03", "2020-01-06"],
@@ -127,9 +116,50 @@ def test_the_gap_error_names_the_dates_and_the_remedy(tmp_path: Path) -> None:
     )
 
     with pytest.raises(DataError) as excinfo:
-        load_prices(["SPY"], "2020-01-01", "2020-01-31",
-                    cache_dir=tmp_path, fetcher=fetcher)
+        load_prices(["SPY"], "2020-01-01", "2020-01-31", cache_dir=tmp_path, fetcher=fetcher)
 
     message = str(excinfo.value)
     assert "2020-01-03" in message
     assert "--end" in message
+
+
+class _FakeYfinance:
+    """Stands in for the yfinance module and records the window it was asked for."""
+
+    def __init__(self) -> None:
+        self.kwargs: dict = {}
+
+    def download(self, tickers, **kwargs):
+        self.kwargs = kwargs
+        index = pd.DatetimeIndex(["2026-07-17", "2026-07-20"])
+        columns = pd.MultiIndex.from_product([["Close"], tickers])
+        return pd.DataFrame([[1.0] * len(tickers)] * 2, index=index, columns=columns)
+
+
+def test_the_end_date_is_inclusive_although_yahoo_treats_it_as_exclusive(monkeypatch) -> None:
+    """--end is documented as the last date loaded, and the bill fetcher honours that.
+    Yahoo's ``end`` stops the day before, so passing it through unchanged would load the
+    prices one session short of the bill."""
+    import sys
+
+    from plab.data.loader import yfinance_fetcher
+
+    fake = _FakeYfinance()
+    monkeypatch.setitem(sys.modules, "yfinance", fake)
+
+    yfinance_fetcher(["SPY"], "2026-07-01", "2026-07-20")
+
+    assert fake.kwargs["end"] == "2026-07-21"
+
+
+def test_an_open_ended_window_is_passed_to_yahoo_unchanged(monkeypatch) -> None:
+    import sys
+
+    from plab.data.loader import yfinance_fetcher
+
+    fake = _FakeYfinance()
+    monkeypatch.setitem(sys.modules, "yfinance", fake)
+
+    yfinance_fetcher(["SPY"], "2026-07-01", None)
+
+    assert fake.kwargs["end"] is None

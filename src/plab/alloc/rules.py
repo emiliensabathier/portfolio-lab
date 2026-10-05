@@ -13,6 +13,7 @@ import pandas as pd
 from scipy.optimize import minimize
 
 from plab.backtest.engine import Strategy
+from plab.cash import align as align_risk_free
 from plab.returns import simple_returns
 from plab.risk.covariance import ledoit_wolf_covariance
 from plab.risk.metrics import NUMERICAL_ZERO, PERIODS_PER_YEAR
@@ -41,8 +42,7 @@ def _as_dict(weights: np.ndarray, columns: pd.Index) -> dict[str, float]:
     total = float(clipped.sum())
     if total <= NUMERICAL_ZERO:
         raise OptimizerError(
-            "optimizer returned no positive weight; refusing to renormalize it into a "
-            "portfolio"
+            "optimizer returned no positive weight; refusing to renormalize it into a portfolio"
         )
     return dict(zip(columns, clipped / total, strict=True))
 
@@ -52,7 +52,11 @@ def _solve(objective, n_assets: int, label: str) -> np.ndarray:
     constraints = ({"type": "eq", "fun": lambda w: w.sum() - 1.0},)
     bounds = [(0.0, 1.0)] * n_assets
     result = minimize(
-        objective, start, method="SLSQP", bounds=bounds, constraints=constraints,
+        objective,
+        start,
+        method="SLSQP",
+        bounds=bounds,
+        constraints=constraints,
         options={"maxiter": 500, "ftol": 1e-12},
     )
     if not result.success:
@@ -124,11 +128,20 @@ def max_sharpe(
     history: pd.DataFrame,
     *,
     estimator: Estimator = ledoit_wolf_covariance,
+    risk_free: pd.Series | None = None,
 ) -> dict[str, float]:
-    """Long-only portfolio maximizing the in-sample Sharpe ratio.
+    """Long-only tangency portfolio, estimated on the trailing window it is handed.
 
-    Sensitive to estimation error in expected returns by construction; reported alongside
-    the other rules precisely so that sensitivity is visible.
+    Expected returns are the window's sample means, so the rule is fitted on the past
+    and held over the following month: the weights are out-of-sample, the estimates
+    behind them are not forward-looking, and they are noisy by construction. It is
+    reported alongside the other rules precisely so that sensitivity is visible.
+
+    ``risk_free`` is the annualized bill series. When given, the ratio maximized is excess
+    return over volatility — the Sharpe the report publishes — using the bill's average
+    over the same window. It is cut at ``date`` here, because the series arrives whole.
+    Without it the ratio is measured against zero, which ranks a calm asset earning less
+    than cash above a volatile one that beats it.
     """
     window = simple_returns(history)
     cov = estimator(window).to_numpy()
@@ -136,6 +149,10 @@ def max_sharpe(
     # annualizes the covariance with PERIODS_PER_YEAR, so hard-coding 252 here would let
     # numerator and denominator drift apart silently if that constant ever changed.
     expected = window.mean().to_numpy() * PERIODS_PER_YEAR
+    if risk_free is not None:
+        # Weights sum to one, so subtracting the window's average bill from every asset
+        # subtracts it once from the portfolio: w @ (mu - rf) = w @ mu - rf.
+        expected = expected - float(align_risk_free(risk_free.loc[:date], window.index).mean())
 
     def negative_sharpe(weights: np.ndarray) -> float:
         # Guards the division below. Unreachable with the default shrinkage estimator,

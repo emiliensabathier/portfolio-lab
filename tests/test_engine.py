@@ -72,9 +72,7 @@ def test_buy_and_hold_of_a_single_asset_reproduces_that_asset_return() -> None:
     def all_in_a(date, history):
         return {"A": 1.0, "B": 0.0}
 
-    result = run_backtest(
-        prices, all_in_a, BacktestConfig(estimation_months=6, cost_bps=0.0)
-    )
+    result = run_backtest(prices, all_in_a, BacktestConfig(estimation_months=6, cost_bps=0.0))
     asset = prices["A"].pct_change().loc[result.returns.index]
 
     pd.testing.assert_series_equal(result.returns, asset, check_names=False, atol=1e-12)
@@ -97,17 +95,14 @@ def test_weights_decided_at_a_rebalance_apply_only_from_the_next_day() -> None:
         decisions.append((date, weights))
         return weights
 
-    result = run_backtest(
-        prices, alternating, BacktestConfig(estimation_months=6, cost_bps=0.0)
-    )
+    result = run_backtest(prices, alternating, BacktestConfig(estimation_months=6, cost_bps=0.0))
     asset_returns = prices.pct_change()
 
     # On the second rebalance date the book must still hold the FIRST decision's weights.
     second_date = decisions[1][0]
     first_weights = decisions[0][1]
     expected = sum(
-        first_weights[ticker] * asset_returns.loc[second_date, ticker]
-        for ticker in prices.columns
+        first_weights[ticker] * asset_returns.loc[second_date, ticker] for ticker in prices.columns
     )
 
     assert result.returns.loc[second_date] == pytest.approx(expected)
@@ -127,9 +122,7 @@ def test_a_ticker_the_strategy_omits_is_treated_as_an_explicit_zero() -> None:
     def only_a(date, history):
         return {"A": 1.0}
 
-    result = run_backtest(
-        _prices(), only_a, BacktestConfig(estimation_months=6, cost_bps=0.0)
-    )
+    result = run_backtest(_prices(), only_a, BacktestConfig(estimation_months=6, cost_bps=0.0))
 
     assert (result.weights["B"] == 0.0).all()
 

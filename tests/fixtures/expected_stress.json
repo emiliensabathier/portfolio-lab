@@ -1,15 +1,15 @@
 {
   "60/40": {
     "covid_2020": {
-      "max_drawdown": -0.21717007214922324,
+      "max_drawdown": -0.2171700721492239,
       "observations": 24.0,
-      "total_return": -0.21500635088273612,
-      "worst_day": -0.07341027758257715
+      "total_return": -0.21500635088273679,
+      "worst_day": -0.07341027758257719
     },
     "gfc_2008": {
-      "max_drawdown": -0.3470332028168157,
+      "max_drawdown": -0.34703320281681616,
       "observations": 356.0,
-      "total_return": -0.3438937598710694,
+      "total_return": -0.34389375987106985,
       "worst_day": -0.0526691991954149
     },
     "rates_2022": {
@@ -21,82 +21,82 @@
   },
   "equal_weight": {
     "covid_2020": {
-      "max_drawdown": -0.23044148169096135,
+      "max_drawdown": -0.23044148169096157,
       "observations": 24.0,
-      "total_return": -0.22677677557093845,
-      "worst_day": -0.06925660345212885
+      "total_return": -0.2267767755709389,
+      "worst_day": -0.06925660345212883
     },
     "gfc_2008": {
-      "max_drawdown": -0.38217794381271375,
+      "max_drawdown": -0.382177943812713,
       "observations": 356.0,
-      "total_return": -0.3363413057948016,
-      "worst_day": -0.06349609251996953
+      "total_return": -0.3363413057948007,
+      "worst_day": -0.06349609251996949
     },
     "rates_2022": {
-      "max_drawdown": -0.19084821972548904,
+      "max_drawdown": -0.1908482197254877,
       "observations": 196.0,
-      "total_return": -0.1882776872588282,
-      "worst_day": -0.03219124039147537
+      "total_return": -0.18827768725882665,
+      "worst_day": -0.032191240391475404
     }
   },
   "max_sharpe": {
     "covid_2020": {
-      "max_drawdown": -0.16384683364954444,
+      "max_drawdown": -0.15486294770761866,
       "observations": 24.0,
-      "total_return": -0.1335751965925116,
-      "worst_day": -0.057686835964288065
+      "total_return": -0.12055503862033623,
+      "worst_day": -0.05538560243567826
     },
     "gfc_2008": {
-      "max_drawdown": -0.2922291135727355,
+      "max_drawdown": -0.2864280922145753,
       "observations": 356.0,
-      "total_return": -0.06278907046674453,
-      "worst_day": -0.06777255745988733
+      "total_return": -0.025473505422535903,
+      "worst_day": -0.06651227892835379
     },
     "rates_2022": {
-      "max_drawdown": -0.17741805213433182,
+      "max_drawdown": -0.18156154493591414,
       "observations": 196.0,
-      "total_return": -0.13406129256373644,
-      "worst_day": -0.030099014505522537
+      "total_return": -0.1278979092497856,
+      "worst_day": -0.02962234617118783
     }
   },
   "min_variance": {
     "covid_2020": {
-      "max_drawdown": -0.11497996702407853,
+      "max_drawdown": -0.11497996719904158,
       "observations": 24.0,
-      "total_return": -0.08093418089783788,
-      "worst_day": -0.04000510941457747
+      "total_return": -0.08093418153903575,
+      "worst_day": -0.04000510941429236
     },
     "gfc_2008": {
-      "max_drawdown": -0.1758162035083991,
+      "max_drawdown": -0.17581620398098696,
       "observations": 356.0,
-      "total_return": -0.04525695316609113,
-      "worst_day": -0.06565482631144895
+      "total_return": -0.04525695465419022,
+      "worst_day": -0.06565482632828702
     },
     "rates_2022": {
-      "max_drawdown": -0.12008646104465293,
+      "max_drawdown": -0.12008646102497111,
       "observations": 196.0,
-      "total_return": -0.11450363157290089,
-      "worst_day": -0.01916639294624629
+      "total_return": -0.11450363188955215,
+      "worst_day": -0.019166393023162816
     }
   },
   "risk_parity": {
     "covid_2020": {
-      "max_drawdown": -0.19148660590583877,
+      "max_drawdown": -0.19148660590583777,
       "observations": 24.0,
-      "total_return": -0.17773493730147938,
-      "worst_day": -0.056529164967307116
+      "total_return": -0.17773493730147816,
+      "worst_day": -0.056529164967306936
     },
     "gfc_2008": {
-      "max_drawdown": -0.31506365623397214,
+      "max_drawdown": -0.3150636562339685,
       "observations": 356.0,
-      "total_return": -0.23630967534227998,
-      "worst_day": -0.04478192365592651
+      "total_return": -0.2363096753422742,
+      "worst_day": -0.044781923655925836
     },
     "rates_2022": {
-      "max_drawdown": -0.16763101878802333,
+      "max_drawdown": -0.16763101878802233,
       "observations": 196.0,
-      "total_return": -0.16311872979883624,
-      "worst_day": -0.028658832600754292
+      "total_return": -0.16311872979883557,
+      "worst_day": -0.028658832600754174
     }
   }
 }

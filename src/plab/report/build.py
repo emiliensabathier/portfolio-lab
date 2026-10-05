@@ -11,7 +11,7 @@ import pandas as pd
 
 from plab.backtest.engine import BacktestResult
 from plab.report.charts import drawdown_chart, risk_share_chart, wealth_chart
-from plab.risk.metrics import beta, summary
+from plab.risk.metrics import beta, sharpe_difference_test, summary
 from plab.risk.tail import cornish_fisher_var, historical_es, historical_var
 
 STYLE = """
@@ -61,8 +61,9 @@ def _risk_free_note(risk_free: pd.Series | None) -> str:
     average = float(risk_free.mean())
     low, high = float(risk_free.min()), float(risk_free.max())
     return (
-        "<p class='note'>Sharpe and Sortino are measured against the thirteen-week "
-        f"Treasury bill, which averaged {_pct(average)} over this window and ranged from "
+        "<p class='note'>Sharpe and Sortino are measured against the three-month "
+        "Treasury bill (FRED DTB3), converted from its discount quote to the "
+        f"bond-equivalent yield, which averaged {_pct(average)} over this window and ranged from "
         f"{_pct(low)} to {_pct(high)}. The bill is the Sharpe's excess-return base and the "
         "Sortino's minimum acceptable return, so a strategy that failed to beat cash "
         "scores below zero on both.</p>"
@@ -97,8 +98,16 @@ def _performance_table(
             row.append(_num(beta(result.returns, reference)))
         rows.append(row)
 
-    headers = ["Strategy", "CAGR", "Volatility", "Sharpe", "Sortino", "Max drawdown",
-               "Calmar", "Turnover p.a."]
+    headers = [
+        "Strategy",
+        "CAGR",
+        "Volatility",
+        "Sharpe",
+        "Sortino",
+        "Max drawdown",
+        "Calmar",
+        "Turnover p.a.",
+    ]
     if reference is not None:
         headers.append(f"Beta vs {benchmark}")
     return _table(headers, rows)
@@ -109,8 +118,7 @@ def _attribution_table(attribution: dict[str, pd.DataFrame]) -> str:
     for name, frame in attribution.items():
         for bloc, values in frame.iterrows():
             rows.append(
-                [name, str(bloc), _pct(values["return_contribution"]),
-                 _pct(values["risk_share"])]
+                [name, str(bloc), _pct(values["return_contribution"]), _pct(values["risk_share"])]
             )
     return _table(
         ["Strategy", "Asset class", "Return contribution", "Share of risk (final allocation)"],
@@ -131,7 +139,47 @@ def _tail_table(results: dict[str, BacktestResult]) -> str:
             ]
         )
     return _table(
-        ["Strategy", "VaR 95%", "ES 95%", "VaR 99%", "Cornish-Fisher VaR 99%"], rows
+        [
+            "Strategy",
+            "1-day VaR 95%",
+            "1-day ES 95%",
+            "1-day VaR 99%",
+            "1-day Cornish-Fisher VaR 99%",
+        ],
+        rows,
+    )
+
+
+TAIL_NOTE = (
+    '<p class="note">One-day horizon, estimated on the daily net return series over the '
+    "whole out-of-sample window. Historical VaR and ES are empirical; Cornish-Fisher adjusts "
+    "the Gaussian quantile for skewness and kurtosis. Each figure is a loss, as a positive "
+    "fraction of capital.</p>"
+)
+
+
+def _significance_table(
+    results: dict[str, BacktestResult], benchmark: str, risk_free: pd.Series | float
+) -> str:
+    reference = results[benchmark].returns
+    rows = []
+    for name, result in results.items():
+        if name == benchmark:
+            continue
+        test = sharpe_difference_test(result.returns, reference, risk_free)
+        rows.append(
+            [name, f"{test['difference']:+.2f}", f"{test['z']:+.2f}", f"{test['p_value']:.3f}"]
+        )
+    return _table(["Strategy", f"Sharpe minus {benchmark}", "z", "p-value"], rows)
+
+
+def _significance_note(benchmark: str) -> str:
+    return (
+        '<p class="note">Two-sided Jobson-Korkie test with the Memmel correction, on daily '
+        f"excess returns, of the null that a rule's Sharpe equals {benchmark}'s. It accounts "
+        "for the correlation between the two return series but assumes returns are "
+        "independent and normal, which daily returns are not; read the p-values as "
+        "indicative.</p>"
     )
 
 
@@ -150,8 +198,7 @@ def _stress_table(stress: dict[str, dict[str, dict[str, float]]]) -> str:
                 ]
             )
     return _table(
-        ["Strategy", "Scenario", "Total return", "Max drawdown", "Worst day",
-         "Observations"],
+        ["Strategy", "Scenario", "Total return", "Max drawdown", "Worst day", "Observations"],
         rows,
     )
 
@@ -173,8 +220,7 @@ def build_report(
         # Silently dropping the Beta column would turn a caller's typo, or a renamed
         # strategy, into a quietly less informative report rather than an error.
         raise ValueError(
-            f"benchmark {benchmark!r} is not among the backtested strategies "
-            f"{sorted(results)}"
+            f"benchmark {benchmark!r} is not among the backtested strategies {sorted(results)}"
         )
 
     series = {name: result.returns for name, result in results.items()}
@@ -188,12 +234,21 @@ def build_report(
         "<h2>Performance and risk</h2>",
         _performance_table(results, benchmark, _rate_or_zero(risk_free)),
         _risk_free_note(risk_free),
+    ]
+    if benchmark is not None and len(results) > 1:
+        sections += [
+            f"<h2>Is the Sharpe different from {html_escape.escape(benchmark)}?</h2>",
+            _significance_table(results, benchmark, _rate_or_zero(risk_free)),
+            _significance_note(html_escape.escape(benchmark)),
+        ]
+    sections += [
         "<h2>Growth of capital</h2>",
         wealth_chart(series),
         "<h2>Drawdowns</h2>",
         drawdown_chart(series),
         "<h2>Tail risk</h2>",
         _tail_table(results),
+        TAIL_NOTE,
     ]
     if risk_shares:
         sections += ["<h2>Risk contribution</h2>", risk_share_chart(risk_shares)]
@@ -224,7 +279,7 @@ def build_report(
 
     body = "\n".join(sections)
     return (
-        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
+        '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         "<title>Multi-asset portfolio construction</title>\n"
         f"<style>{STYLE}</style>\n</head>\n<body>\n{body}\n</body>\n</html>\n"
     )

@@ -12,17 +12,15 @@ a chart that silently redrew itself on every run would drift away from the capti
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+from plab.backtest.engine import BacktestConfig
+from plab.pipeline import run
+from plab.report.charts import wealth_figure
 
-from plab.backtest.engine import BacktestConfig  # noqa: E402
-from plab.pipeline import run  # noqa: E402
-from plab.report.charts import wealth_figure  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
 
 FIXTURES = ROOT / "tests" / "fixtures"
 OUTPUT = ROOT / "docs" / "growth-of-capital.png"

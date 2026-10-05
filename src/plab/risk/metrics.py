@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 PERIODS_PER_YEAR = 252
 
@@ -77,6 +78,46 @@ def sharpe_ratio(returns: pd.Series, risk_free: float | pd.Series = 0.0) -> floa
     return annual_excess / volatility
 
 
+def sharpe_difference_test(
+    returns: pd.Series, benchmark: pd.Series, risk_free: float | pd.Series = 0.0
+) -> dict[str, float]:
+    """Is the Sharpe of ``returns`` different from the benchmark's? Two-sided.
+
+    Jobson and Korkie (1981) with the correction of Memmel (2003). On per-period excess
+    returns with Sharpe ratios ``a`` and ``b`` and correlation ``rho`` over ``T`` periods,
+
+        theta = [2 - 2 rho + (a^2 + b^2 - 2 a b rho^2) / 2] / T,   z = (a - b) / sqrt(theta)
+
+    and the p-value is the two-sided normal tail of ``z``. The variance assumes returns
+    that are independent and normal; daily portfolio returns are neither, which this
+    test does not repair. The correlation term matters: two strategies that hold the same
+    assets have highly correlated returns, and treating them as independent would make a
+    real difference look like noise.
+
+    Returns the annualized Sharpe difference, ``z`` and the p-value.
+    """
+    if not returns.index.equals(benchmark.index):
+        raise ValueError("the two return series must cover the same dates")
+    first, second = _excess(returns, risk_free), _excess(benchmark, risk_free)
+    sr_first = float(first.mean() / first.std(ddof=1))
+    sr_second = float(second.mean() / second.std(ddof=1))
+    rho = float(np.corrcoef(first, second)[0, 1])
+    theta = (
+        2.0 - 2.0 * rho + 0.5 * (sr_first**2 + sr_second**2 - 2.0 * sr_first * sr_second * rho**2)
+    ) / len(first)
+    if theta <= NUMERICAL_ZERO:
+        raise ValueError(
+            "the Sharpe difference has degenerate variance; the two series are the same "
+            "strategy up to scale"
+        )
+    z = (sr_first - sr_second) / np.sqrt(theta)
+    return {
+        "difference": (sr_first - sr_second) * np.sqrt(PERIODS_PER_YEAR),
+        "z": float(z),
+        "p_value": float(2.0 * stats.norm.sf(abs(z))),
+    }
+
+
 def sortino_ratio(returns: pd.Series, target: float | pd.Series = 0.0) -> float:
     """Annualized excess return over downside deviation below ``target``.
 
@@ -95,9 +136,7 @@ def sortino_ratio(returns: pd.Series, target: float | pd.Series = 0.0) -> float:
     annual_excess = float(excess.mean() * PERIODS_PER_YEAR)
     if downside.empty:
         return np.inf if annual_excess > 0 else 0.0
-    deviation = float(
-        np.sqrt((downside**2).sum() / len(excess)) * np.sqrt(PERIODS_PER_YEAR)
-    )
+    deviation = float(np.sqrt((downside**2).sum() / len(excess)) * np.sqrt(PERIODS_PER_YEAR))
     if deviation <= NUMERICAL_ZERO:
         return np.inf if annual_excess > 0 else 0.0
     return annual_excess / deviation

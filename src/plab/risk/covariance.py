@@ -54,8 +54,7 @@ def shrinkage_intensity(returns: pd.DataFrame) -> float:
         raise SingularCovarianceError("sample covariance is exactly the identity target")
 
     noise = float(
-        np.sum([np.sum((np.outer(row, row) - sample) ** 2) for row in x])
-        / (n_assets * n_obs**2)
+        np.sum([np.sum((np.outer(row, row) - sample) ** 2) for row in x]) / (n_assets * n_obs**2)
     )
     return float(min(noise, dispersion) / dispersion)
 

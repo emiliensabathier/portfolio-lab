@@ -11,22 +11,26 @@ and converted once, here, to the basis the ratios need.
 
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
+from urllib.request import urlopen
 
 import pandas as pd
 
 from plab.data.loader import Fetcher, load_prices
 from plab.errors import DataError
 
-# The three-month bill on the secondary market, quoted as a discount rate in percent —
-# the same quantity the CBOE ^IRX index carries, taken from FRED instead.
+# The three-month (91-day) Treasury bill, secondary market, quoted as a discount rate in
+# percent: FRED series DTB3, published by the Federal Reserve Board in the H.15 release.
 #
-# ^IRX was the original source and had to go: Yahoo serves it with roughly one month of
-# history, so a backtest starting in 2007 either fails outright or, worse, aligns against
-# a window that silently starts last month. FRED serves DTB3 daily back to 1954, which is
-# the whole point of a riskless leg that has to cover the sample.
+# It replaced Yahoo's ^IRX (the CBOE 13-week bill index) as a matter of provenance, not
+# coverage: ^IRX is read through yfinance, an unofficial scraper of Yahoo's pages with no
+# documented schema or revision policy, while DTB3 is the official daily series, back to
+# 1954, at a stable URL.
 CASH_TICKER = "DTB3"
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series}"
+# A hung connection must fail the run rather than freeze it.
+FRED_TIMEOUT_SECONDS = 30
 
 PERCENT = 100.0
 BILL_DAYS = 91
@@ -50,19 +54,42 @@ def bond_equivalent_yield(discount: pd.Series) -> pd.Series:
     return YEAR_DAYS * discount / (DISCOUNT_BASIS - BILL_DAYS * discount)
 
 
+def _download(url: str, series_id: str) -> bytes:
+    """Fetch ``url`` within the timeout, or raise a DataError naming the series.
+
+    ``OSError`` covers ``URLError``, ``HTTPError``, ``TimeoutError`` and a reset socket:
+    every way the request can fail before a body arrives.
+    """
+    try:
+        with urlopen(url, timeout=FRED_TIMEOUT_SECONDS) as response:
+            return response.read()
+    except OSError as error:
+        raise DataError(f"could not download {series_id} from FRED: {error}") from error
+
+
 def fred_fetcher(tickers: list[str], start: str, end: str | None) -> pd.DataFrame:
-    """Fetcher for FRED daily series, one series per call.
+    """Fetcher for FRED daily series, one series per call. ``end`` is inclusive.
 
     FRED publishes a two-column CSV — ``observation_date`` and the series id — and marks a
     day with no observation as ``.`` rather than omitting it. Those rows are dropped, not
     filled: a holiday has no quote, and ``align`` already carries the last rate across a
-    short gap, which is accrual rather than invention.
+    short gap, which is accrual rather than invention. A body that is not that CSV — empty,
+    an HTML error page, another series — is refused rather than parsed into a rate.
     """
     if len(tickers) != 1:
         raise DataError(f"the FRED fetcher takes one series at a time, got {tickers}")
     series_id = tickers[0]
-    frame = pd.read_csv(FRED_CSV.format(series=series_id), index_col=0, parse_dates=[0])
-    series = pd.to_numeric(frame.iloc[:, 0], errors="coerce").dropna()
+    body = _download(FRED_CSV.format(series=series_id), series_id)
+    try:
+        frame = pd.read_csv(BytesIO(body), index_col=0, parse_dates=[0])
+    except (pd.errors.ParserError, pd.errors.EmptyDataError, ValueError) as error:
+        raise DataError(f"FRED did not return a CSV for {series_id}: {error}") from error
+    if series_id not in frame.columns:
+        raise DataError(
+            f"FRED response for {series_id} has columns {list(frame.columns)}, "
+            f"not the requested series"
+        )
+    series = pd.to_numeric(frame[series_id], errors="coerce").dropna()
     series.index = pd.DatetimeIndex(series.index)
     # FRED serves the full history and ignores date parameters on this endpoint, so the
     # requested window is applied here rather than upstream.
@@ -99,9 +126,11 @@ def align(risk_free: pd.Series, index: pd.DatetimeIndex) -> pd.Series:
     outright when the requested window starts before the series does — extending a rate
     backwards would invent the one number the ratio is measured against.
     """
-    aligned = risk_free.reindex(risk_free.index.union(index)).ffill(
-        limit=MAX_STALE_SESSIONS
-    ).reindex(index)
+    aligned = (
+        risk_free.reindex(risk_free.index.union(index))
+        .ffill(limit=MAX_STALE_SESSIONS)
+        .reindex(index)
+    )
     missing = aligned.isna()
     if missing.any():
         first, last = index[missing][0], index[missing][-1]

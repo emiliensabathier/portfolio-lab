@@ -6,43 +6,52 @@ Multi-asset portfolio construction, risk analytics and backtesting on a ten-ETF 
 
 ## Results
 
-Out-of-sample, monthly rebalanced, **net of 5 bps transaction costs**, from 2010-08.
-Sharpe and Sortino are **excess of the thirteen-week Treasury bill**, which averaged 1.54%
-over this window and ranged from -0.11% to 5.50%.
+Out-of-sample 2010-08-02 to 2026-08-14, monthly rebalanced, **net of 5 bps transaction
+costs**. Sharpe and Sortino are **excess of the three-month Treasury bill** (FRED `DTB3`,
+converted to the bond-equivalent yield), which averaged 1.55% over this window and ranged
+from -0.05% to 5.51%. The last column is the p-value of a test that the rule's Sharpe
+equals the benchmark's (see below).
 
-| Strategy | CAGR | Volatility | Sharpe | Sortino | Max drawdown | Turnover p.a. |
-| --- | --- | --- | --- | --- | --- | --- |
-| 60/40 benchmark | 9.93% | 10.32% | 0.82 | 1.15 | -21.63% | 0.18 |
-| Equal weight | 7.40% | 10.47% | 0.59 | 0.82 | -23.21% | 0.29 |
-| Minimum variance | 3.53% | 4.61% | 0.44 | 0.61 | -15.11% | 0.35 |
-| Risk parity | 5.68% | 8.17% | 0.53 | 0.74 | -20.26% | 0.45 |
-| Maximum Sharpe | 7.61% | 9.08% | 0.68 | 0.95 | -21.15% | 2.02 |
+| Strategy | CAGR | Volatility | Sharpe | Sortino | Max drawdown | Turnover p.a. | p vs 60/40 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 60/40 benchmark | 9.93% | 10.32% | 0.82 | 1.15 | -21.63% | 0.18 | — |
+| Equal weight | 7.40% | 10.47% | 0.59 | 0.81 | -23.21% | 0.29 | 0.038 |
+| Minimum variance | 3.53% | 4.61% | 0.44 | 0.60 | -15.11% | 0.35 | 0.130 |
+| Risk parity | 5.68% | 8.17% | 0.53 | 0.73 | -20.26% | 0.45 | 0.080 |
+| Maximum Sharpe | 7.95% | 10.07% | 0.66 | 0.90 | -21.21% | 2.14 | 0.511 |
 
 Not one of the four rules beats a static 60/40 on risk-adjusted return, and measuring
 against cash rather than against zero is what makes that legible: it costs every strategy
-between 0.14 and 0.33 of Sharpe, and it costs the low-volatility rules most, because a
-minimum-variance book earning 3.53% while bills paid 1.54% has given up most of its edge
+between 0.15 and 0.34 of Sharpe, and it costs the low-volatility rules most, because a
+minimum-variance book earning 3.53% while bills paid 1.55% has given up most of its edge
 to the riskless leg.
+
+What the data supports is "does not beat", not "is worse than". A two-sided
+Jobson-Korkie test with the Memmel correction, on daily excess returns, rejects equal
+Sharpe ratios at 5% only for equal weight (p = 0.038); for the other three rules the
+shortfall against 60/40 is within what sixteen years of daily noise can produce. Four
+tests are run, so after a Bonferroni correction (1.25% per test) none of the shortfalls
+is significant.
 
 ![Growth of one unit of capital, net of costs, for each strategy against the 60/40 benchmark](docs/growth-of-capital.png)
 
 The benchmark is the top line and it is not close. That is the result: four textbook
 allocation rules, each of them defensible, none of them beating the simplest possible
 portfolio over this window. The chart is drawn from the frozen fixture, which ends
-2024-12-30, so it stops earlier than the live table above.
+2024-12-30, so it stops earlier than the table above.
 
 Full report with charts, tail risk and stress tests: [`reports/portfolio.html`](reports/portfolio.html).
 
-These figures come from a live run and will drift as more history accumulates.
-`tests/fixtures/expected_metrics.json` freezes the same computation to 2024-12-30, so a
-reader can reproduce that snapshot offline, without network access, even as the numbers
-above keep moving.
+These figures come from `python -m plab --end 2026-08-14` and will drift as more history
+accumulates. `tests/fixtures/expected_metrics.json` freezes the same computation to
+2024-12-30, so a reader can reproduce that snapshot offline, without network access, even
+as the numbers above keep moving.
 
 ## Method
 
 - **Universe**: ten liquid ETFs across equity (SPY, IWM, EFA, EEM), rates (AGG, TLT, HYG)
-  and real assets (GLD, VNQ, DBC). ETFs rather than single stocks, because an ETF does not
-  disappear: the universe carries **no survivorship bias**.
+  and real assets (GLD, VNQ, DBC). The list was chosen in 2026; see Limitations for what
+  that implies.
 - **Estimation**: 36-month rolling window, Ledoit-Wolf shrinkage towards a scaled identity
   target, implemented from the 2004 paper rather than imported.
 - **Rebalancing**: monthly, at the last trading day. Weights decided on day *d* apply from
@@ -50,6 +59,9 @@ above keep moving.
 - **Costs**: 5 bps charged on turnover, where turnover is the sum of absolute weight
   changes. Every figure in the results table above is net.
 - **Benchmarks**: 60/40 SPY/AGG and equal weight. No strategy is reported without both.
+- **Significance**: each rule's Sharpe is tested against the 60/40's with Jobson-Korkie
+  (1981) as corrected by Memmel (2003), which accounts for the correlation between the
+  two return series.
 
 ### Look-ahead bias
 
@@ -63,6 +75,12 @@ date. The guarantee is enforced by the interface, not by convention.
 
 Stated because they matter more than the headline numbers.
 
+- **The universe was picked with hindsight.** All ten ETFs still trade today, and they were
+  chosen in 2026 by someone who knew which asset classes and which funds had lasted. That
+  is a selection bias, and a look-ahead in the choice of universe, even though the engine
+  prevents look-ahead in the weights. Broad index ETFs rather than single stocks limit
+  survivorship inside each fund, since an index replaces its own failed constituents, but
+  they do nothing about the bias in choosing the funds.
 - **The 2008 crisis is not in the out-of-sample backtest.** HYG listed in April 2007, so the
   common history starts 2007-07; the first 36 months are consumed by the estimation window,
   so the backtest itself only begins 2010-07 (first weights decided 2010-07-30, first return
@@ -75,21 +93,32 @@ Stated because they matter more than the headline numbers.
   transaction costs.
 - **The stress figures depend on when you run them**, because they replay the strategy's
   *final* weights, and those weights change as new history arrives. Concretely: the live run
-  behind the results table above puts the 2008 loss for `min_variance` at **-13.97%**, while
+  behind the results table above puts the 2008 loss for `min_variance` at **-13.85%**, while
   the frozen fixture ending 2024-12-30 gives **-4.5%** for the same strategy and the same
   scenario. Same code, same method, different as-of date — a reader who compares the two
   without this note would reasonably conclude something is broken.
 - **No slippage or market impact model.** Transaction costs are a flat spread on turnover.
   Realistic for ten large ETFs at small size, optimistic at scale.
-- **Maximum Sharpe uses in-sample expected returns** and is included precisely to make its
-  instability visible next to the other rules, not as a recommendation.
+- **Maximum Sharpe estimates expected returns as trailing sample means.** Each month it
+  maximizes the excess-of-bill Sharpe estimated on the previous 36 months and holds the
+  result for the next month, so the weights are out-of-sample but rest on the noisiest
+  input in portfolio construction; its turnover of 2.14 a year is that noise. It is
+  included to make the instability visible next to the other rules, not as a
+  recommendation.
+- **The Sharpe test assumes independent, normal returns.** The Jobson-Korkie-Memmel
+  variance is derived under that assumption; daily returns are fat-tailed and their
+  volatility clusters, which can make the test too ready to reject. The p-values are
+  indicative, and the conclusion they support (no rule beats 60/40) does not hinge on
+  their precision.
 - **The riskless leg is the three-month bill, and it is a bill, not the funding rate any
   particular investor faces.** FRED's `DTB3` is quoted on a bank-discount basis; `cash.py`
   converts it once to the bond-equivalent yield, which is the number an investor earns on
   the price paid, so the conversion is removed rather than disclosed. What remains
   disclosed: a real book funds at a spread to bills, not at bills, and no such spread is
-  modelled here. The series was `^IRX` until Yahoo began serving it with about a month of
-  history, which is not enough to cover a backtest that starts in 2007.
+  modelled here. The series used to be Yahoo's `^IRX`, the CBOE index on the 13-week bill,
+  read through `yfinance`, an unofficial scraper. It moved to FRED for provenance: `DTB3`
+  is the Federal Reserve's own H.15 series at a stable, documented endpoint. Over this
+  window the two differ by about 1.5 basis points on average.
 - **Dividends** are handled through adjusted close prices, which assumes reinvestment at
   close with no tax.
 - **The Cornish-Fisher expansion degrades on daily returns with high excess kurtosis.**
@@ -111,16 +140,14 @@ python -m venv .venv
 
 Prices are cached under `cache/`; pass `--refresh` to re-download.
 
-The price panel comes from a vendor whose recent tail is sometimes incomplete: a session
-can be missing for one ETF and present for the rest, and July 2026 had three such days
-across AGG, DBC, EEM, EFA, HYG and VNQ. Nothing is forward-filled to paper over it, so the
-run refuses and names the dates. Pass `--end` to run on the intact history instead:
+The price panel comes from Yahoo through `yfinance`, and a session can come back missing
+for one ETF and present for the rest. Nothing is forward-filled to paper over it, so the
+run refuses and names the dates. Pass `--end` to run on the intact history instead; the
+date is inclusive, and it cuts the bill series to the same window:
 
 ```bash
-.venv/bin/python -m plab --end 2026-07-20 --output reports/portfolio.html
+.venv/bin/python -m plab --end 2026-08-14 --output reports/portfolio.html
 ```
-
-The flag cuts the bill series to the same window, so the two never drift apart.
 
 ## Tests
 

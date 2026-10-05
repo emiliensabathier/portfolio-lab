@@ -25,17 +25,27 @@ CACHE_MAX_AGE = timedelta(days=1)
 class Fetcher(Protocol):
     """Retrieves adjusted close prices for the given tickers."""
 
-    def __call__(
-        self, tickers: list[str], start: str, end: str | None
-    ) -> pd.DataFrame: ...
+    def __call__(self, tickers: list[str], start: str, end: str | None) -> pd.DataFrame: ...
 
 
 def yfinance_fetcher(tickers: list[str], start: str, end: str | None) -> pd.DataFrame:
-    """Default fetcher. Returns adjusted close prices, one column per ticker."""
+    """Default fetcher. Returns adjusted close prices, one column per ticker.
+
+    ``end`` is inclusive, as everywhere else in the package. Yahoo stops the day before
+    the ``end`` it is given, so the date is moved forward one day before it is passed on.
+    """
     import yfinance as yf
 
+    exclusive_end = (
+        None if end is None else (pd.Timestamp(end) + pd.Timedelta(days=1)).date().isoformat()
+    )
     raw = yf.download(
-        tickers, start=start, end=end, auto_adjust=True, progress=False, group_by="column"
+        tickers,
+        start=start,
+        end=exclusive_end,
+        auto_adjust=True,
+        progress=False,
+        group_by="column",
     )
     if raw.empty:
         raise DataError(f"yfinance returned no data for {tickers}")

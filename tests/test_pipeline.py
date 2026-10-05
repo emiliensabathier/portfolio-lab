@@ -80,3 +80,25 @@ def test_rendering_produces_a_complete_document(output) -> None:
     assert "Beta vs 60/40" in html
     assert "Asset class attribution" in html
     assert "gfc_2008" in html
+
+
+def test_max_sharpe_is_handed_the_bill_when_the_pipeline_has_one() -> None:
+    # The published Sharpe is measured against the bill; a max-Sharpe rule maximizing the
+    # ratio against zero would be optimizing a number the report does not show.
+    from plab.alloc.rules import max_sharpe
+    from plab.pipeline import strategies_for
+
+    prices = _prices(n_days=400)
+    date = prices.index[-1]
+    rate = pd.Series(0.04, index=prices.index)
+
+    wired = strategies_for(rate)["max_sharpe"](date, prices)
+
+    assert wired == pytest.approx(max_sharpe(date, prices, risk_free=rate))
+    assert wired != pytest.approx(max_sharpe(date, prices))
+
+
+def test_without_a_bill_the_declared_strategies_are_used_unchanged() -> None:
+    from plab.pipeline import strategies_for
+
+    assert strategies_for(None) == STRATEGIES

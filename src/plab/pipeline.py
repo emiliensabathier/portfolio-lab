@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 
 import pandas as pd
 
@@ -26,6 +27,17 @@ STRATEGIES: dict[str, Strategy] = {
 
 BENCHMARK = "60/40"
 BLOCS: dict[str, str] = {asset.ticker: asset.bloc for asset in ETF_CORE}
+
+
+def strategies_for(risk_free: pd.Series | None) -> dict[str, Strategy]:
+    """The declared strategies, with the bill handed to the one rule that optimizes on it.
+
+    Maximum Sharpe maximizes the ratio the report publishes, so when the report measures
+    Sharpe against the bill the rule must too. ``STRATEGIES`` itself is left untouched.
+    """
+    if risk_free is None:
+        return dict(STRATEGIES)
+    return {**STRATEGIES, "max_sharpe": partial(max_sharpe, risk_free=risk_free)}
 
 
 @dataclass(frozen=True)
@@ -54,7 +66,7 @@ def run(
     covariance = ledoit_wolf_covariance(asset_returns.tail(config.estimation_months * 21))
     aligned_risk_free: pd.Series | None = None
 
-    for name, strategy in STRATEGIES.items():
+    for name, strategy in strategies_for(risk_free).items():
         result = run_backtest(prices, strategy, config)
         results[name] = result
         if risk_free is not None and aligned_risk_free is None:
@@ -84,9 +96,7 @@ def run(
         # with the others, and labelled as such in the report. No scenario is skipped; a
         # window the price history cannot reach is an error, not something to swallow.
         static = (asset_returns * final).sum(axis=1)
-        stress[name] = {
-            scenario: replay(static, scenario) for scenario in HISTORICAL_SCENARIOS
-        }
+        stress[name] = {scenario: replay(static, scenario) for scenario in HISTORICAL_SCENARIOS}
 
     return PipelineOutput(
         results=results,

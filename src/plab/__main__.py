@@ -23,7 +23,9 @@ def main() -> None:
     # otherwise no way to ask for the history that is intact. Applies to the bill series
     # as well as to the prices, so the two stay on the same window.
     parser.add_argument(
-        "--end", default=None, help="last date to load, ISO format (default: latest available)"
+        "--end",
+        default=None,
+        help="last date to load, inclusive, ISO format (default: latest available)",
     )
     parser.add_argument("--cost-bps", type=float, default=5.0)
     parser.add_argument("--estimation-months", type=int, default=36)
@@ -39,9 +41,7 @@ def main() -> None:
     risk_free = load_risk_free(
         CORE_START, end=args.end, cache_dir=Path(args.cache_dir), refresh=args.refresh
     )
-    config = BacktestConfig(
-        estimation_months=args.estimation_months, cost_bps=args.cost_bps
-    )
+    config = BacktestConfig(estimation_months=args.estimation_months, cost_bps=args.cost_bps)
     output = run(prices, config, risk_free=risk_free)
     html = render(output, generated_on=datetime.now(UTC).date().isoformat())
 

@@ -48,8 +48,16 @@ def test_report_is_a_single_document_with_no_external_resources() -> None:
     html = build_report(
         results={"min_variance": _result(), "60/40": _result(1)},
         risk_shares={"min_variance": pd.Series({"A": 0.5, "B": 0.5})},
-        stress={"min_variance": {"covid_2020": {"total_return": -0.2, "max_drawdown": -0.25,
-                                                "worst_day": -0.07, "observations": 25.0}}},
+        stress={
+            "min_variance": {
+                "covid_2020": {
+                    "total_return": -0.2,
+                    "max_drawdown": -0.25,
+                    "worst_day": -0.07,
+                    "observations": 25.0,
+                }
+            }
+        },
         generated_on="2026-08-06",
     )
 
@@ -180,3 +188,57 @@ def test_a_benchmark_that_was_not_backtested_raises() -> None:
 def test_report_rejects_an_empty_result_set() -> None:
     with pytest.raises(ValueError, match="at least one"):
         build_report(results={}, risk_shares={}, stress={}, generated_on="2026-08-06")
+
+
+def test_each_rule_gets_a_sharpe_test_against_the_benchmark() -> None:
+    from plab.risk.metrics import sharpe_difference_test
+
+    rule, benchmark = _result(), _result(1)
+    html = build_report(
+        results={"min_variance": rule, "60/40": benchmark},
+        risk_shares={},
+        stress={},
+        generated_on="2026-08-06",
+        benchmark="60/40",
+    )
+
+    section = html.split("Is the Sharpe different from 60/40?")[1]
+    body = section.split("<tbody>")[1].split("</tbody>")[0]
+    cells = [chunk.split("</td>")[0] for chunk in body.split("<td>")[1:]]
+    test = sharpe_difference_test(rule.returns, benchmark.returns)
+
+    # The benchmark is not tested against itself: one row per rule.
+    assert body.count("<tr>") == 1
+    assert cells[0] == "min_variance"
+    assert cells[1] == f"{test['difference']:+.2f}"
+    assert cells[2] == f"{test['z']:+.2f}"
+    assert cells[3] == f"{test['p_value']:.3f}"
+    assert "Jobson-Korkie" in html
+
+
+def test_the_tail_table_states_horizon_and_confidence() -> None:
+    html = build_report(
+        results={"only": _result()}, risk_shares={}, stress={}, generated_on="2026-08-06"
+    )
+
+    for header in (
+        "1-day VaR 95%",
+        "1-day ES 95%",
+        "1-day VaR 99%",
+        "1-day Cornish-Fisher VaR 99%",
+    ):
+        assert f"<th>{header}</th>" in html
+
+
+def test_the_bill_is_named_by_its_series() -> None:
+    returns = _result().returns
+    html = build_report(
+        results={"only": _result()},
+        risk_shares={},
+        stress={},
+        generated_on="2026-08-06",
+        risk_free=pd.Series(0.02, index=returns.index),
+    )
+
+    assert "three-month Treasury bill (FRED DTB3)" in html
+    assert "thirteen-week" not in html
