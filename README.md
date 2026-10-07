@@ -4,6 +4,16 @@ Multi-asset portfolio construction, risk analytics and backtesting on a ten-ETF 
 
 ![ci](https://github.com/emiliensabathier/portfolio-lab/actions/workflows/ci.yml/badge.svg)
 
+![Growth of one unit of capital, net of costs, for each strategy against the 60/40 benchmark](docs/growth-of-capital.png)
+
+**In short**
+
+- None of equal weight, minimum variance, risk parity or maximum Sharpe beats a static 60/40 (Sharpe 0.82) out of sample from 2010 to 2026, net of 5 bps costs.
+- Only equal weight differs at the 5% level (Jobson-Korkie-Memmel p = 0.038, and it is worse); nothing survives Bonferroni.
+- Look-ahead is impossible by construction: a strategy only ever receives a copy of the past, and a spy test checks it.
+
+Rendered report: <https://emiliensabathier.github.io/portfolio-lab/>
+
 ## Results
 
 Out-of-sample 2010-08-02 to 2026-08-14, monthly rebalanced, **net of 5 bps transaction
@@ -33,11 +43,9 @@ shortfall against 60/40 is within what sixteen years of daily noise can produce.
 tests are run, so after a Bonferroni correction (1.25% per test) none of the shortfalls
 is significant.
 
-![Growth of one unit of capital, net of costs, for each strategy against the 60/40 benchmark](docs/growth-of-capital.png)
-
 The benchmark is the top line and it is not close. That is the result: four textbook
 allocation rules, each of them defensible, none of them beating the simplest possible
-portfolio over this window. The chart is drawn from the frozen fixture, which ends
+portfolio over this window. The chart at the top of this page is drawn from the frozen fixture, which ends
 2024-12-30, so it stops earlier than the table above.
 
 Full report with charts, tail risk and stress tests: [`reports/portfolio.html`](reports/portfolio.html).
