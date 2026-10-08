@@ -8,12 +8,19 @@ from functools import partial
 import pandas as pd
 
 from plab.alloc.rules import equal_weight, fixed_weights, max_sharpe, min_variance, risk_parity
-from plab.backtest.engine import BacktestConfig, BacktestResult, Strategy, run_backtest
+from plab.backtest.engine import (
+    BacktestConfig,
+    BacktestResult,
+    MarketImpact,
+    Strategy,
+    run_backtest,
+)
 from plab.cash import align as align_risk_free
 from plab.report.build import build_report
 from plab.returns import simple_returns
 from plab.risk.attribution import bloc_contribution, return_contribution, risk_contribution
 from plab.risk.covariance import ledoit_wolf_covariance
+from plab.risk.metrics import PERIODS_PER_YEAR, sharpe_ratio
 from plab.risk.stress import HISTORICAL_SCENARIOS, replay
 from plab.universe import ETF_CORE
 
@@ -105,6 +112,36 @@ def run(
         bloc_attribution=bloc_attribution,
         risk_free=aligned_risk_free,
     )
+
+
+def capacity(
+    prices: pd.DataFrame,
+    config: BacktestConfig,
+    dollar_volume: pd.DataFrame,
+    aums: tuple[float, ...],
+    risk_free: pd.Series | None = None,
+) -> pd.DataFrame:
+    """Net Sharpe and annual cost drag of every strategy as the book grows.
+
+    The first column, size ``0.0``, is the linear spread alone; each further size adds
+    square-root market impact on a book of that many dollars. Cost drag is the annualized
+    gap between gross and net returns. Columns are a two-level index, (measure, size).
+    """
+    sizes = (0.0, *aums)
+    rows: dict[str, dict[tuple[str, float], float]] = {}
+    for name, strategy in strategies_for(risk_free).items():
+        row: dict[tuple[str, float], float] = {}
+        for size in sizes:
+            impact = None if size == 0.0 else MarketImpact(aum=size, dollar_volume=dollar_volume)
+            result = run_backtest(prices, strategy, config, impact=impact)
+            bill = 0.0 if risk_free is None else align_risk_free(risk_free, result.returns.index)
+            row[("sharpe", size)] = sharpe_ratio(result.returns, bill)
+            drag = (result.gross_returns - result.returns).mean() * PERIODS_PER_YEAR
+            row[("cost_drag", size)] = float(drag)
+        rows[name] = row
+    table = pd.DataFrame(rows).T
+    table.columns = pd.MultiIndex.from_tuples(table.columns)
+    return table
 
 
 def render(output: PipelineOutput, generated_on: str) -> str:

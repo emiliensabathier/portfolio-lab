@@ -102,3 +102,33 @@ def test_without_a_bill_the_declared_strategies_are_used_unchanged() -> None:
     from plab.pipeline import strategies_for
 
     assert strategies_for(None) == STRATEGIES
+
+
+def test_capacity_reports_every_strategy_at_every_size() -> None:
+    from plab.pipeline import capacity
+
+    prices = _prices(n_days=700)
+    volume = pd.DataFrame(1e8, index=prices.index, columns=prices.columns)
+
+    table = capacity(prices, BacktestConfig(estimation_months=12), volume, aums=(1e7, 1e9))
+
+    assert set(table.index) == set(STRATEGIES)
+    assert list(table.columns.get_level_values(0).unique()) == ["sharpe", "cost_drag"]
+    assert list(table["sharpe"].columns) == [0.0, 1e7, 1e9]
+    # A bigger book pays more impact, so its cost drag never shrinks.
+    drag = table["cost_drag"]
+    assert (drag[1e9] >= drag[1e7]).all() and (drag[1e7] >= drag[0.0]).all()
+
+
+
+def test_capacity_runs_on_the_long_universe() -> None:
+    from plab.pipeline import capacity
+    from plab.universe import ETF_LONG
+
+    prices = _prices(n_days=700)[tickers(ETF_LONG)]
+    volume = pd.DataFrame(1e8, index=prices.index, columns=prices.columns)
+
+    table = capacity(prices, BacktestConfig(estimation_months=12), volume, aums=(1e9,))
+
+    assert set(table.index) == set(STRATEGIES)
+    assert table.notna().all().all()

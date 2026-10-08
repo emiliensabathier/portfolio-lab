@@ -11,6 +11,12 @@ charge is ``turnover * cost_bps / 10_000``, incurred at the close of the rebalan
 debited from the *next* period's return — including the initial purchase. ``returns`` is
 therefore always net of costs; ``gross_returns`` is what the same strategy would have earned
 free of any friction.
+
+Market impact, optional: a book of ``aum`` dollars trading a fraction ``t`` of itself in an
+asset pays, on top of the spread, the square-root law ``Y * sigma * sqrt(t * aum / ADV)`` on
+that trade (Toth et al. 2011; Bouchaud et al. 2018, ch. 12), where ``sigma`` is the asset's trailing
+daily volatility and ``ADV`` its average daily dollar volume. Volume is averaged over the
+sessions *before* the rebalance day, never including it.
 """
 
 from __future__ import annotations
@@ -40,6 +46,42 @@ class BacktestConfig:
     estimation_months: int = 36
     cost_bps: float = 5.0
     no_trade_band: float = 0.0
+
+
+@dataclass(frozen=True)
+class MarketImpact:
+    """Square-root impact for a book of ``aum`` dollars.
+
+    ``dollar_volume`` is each asset's daily traded value, on the price calendar.
+    """
+
+    aum: float
+    dollar_volume: pd.DataFrame
+    coefficient: float = 1.0
+    volume_days: int = 20
+    volatility_days: int = 60
+
+    def __post_init__(self) -> None:
+        if not self.aum > 0:
+            raise ValueError(f"aum must be positive, got {self.aum}")
+
+
+def _impact_charge(
+    traded: pd.Series,
+    day: pd.Timestamp,
+    asset_returns: pd.DataFrame,
+    impact: MarketImpact,
+) -> float:
+    """Square-root impact on the per-asset trade ``traded`` decided at the close of ``day``."""
+    volume = impact.dollar_volume.reindex(columns=traded.index)
+    adv = volume.loc[volume.index < day].tail(impact.volume_days).mean()
+    active = traded > 0
+    if not np.isfinite(adv[active]).all() or (adv[active] <= 0).any():
+        raise StrategyError(f"no usable dollar volume before {day.date()} for a traded asset")
+    sigma = asset_returns.loc[:day].tail(impact.volatility_days).std()
+    participation = traded[active] * impact.aum / adv[active]
+    per_asset = traded[active] * impact.coefficient * sigma[active] * np.sqrt(participation)
+    return float(per_asset.sum())
 
 
 @dataclass(frozen=True)
@@ -93,10 +135,16 @@ def _drifted_weights(previous: pd.Series, period_returns: pd.Series) -> pd.Serie
 
 
 def run_backtest(
-    prices: pd.DataFrame, strategy: Strategy, config: BacktestConfig
+    prices: pd.DataFrame,
+    strategy: Strategy,
+    config: BacktestConfig,
+    impact: MarketImpact | None = None,
 ) -> BacktestResult:
     """Run ``strategy`` over ``prices`` with monthly rebalancing, net of costs."""
     prices = prices.sort_index()
+    if impact is not None and set(prices.columns) - set(impact.dollar_volume.columns):
+        missing = sorted(set(prices.columns) - set(impact.dollar_volume.columns))
+        raise StrategyError(f"no dollar volume supplied for {missing}")
     asset_returns = simple_returns(prices)
 
     first_valid = prices.index.min() + pd.DateOffset(months=config.estimation_months)
@@ -137,12 +185,16 @@ def run_backtest(
         history = prices.loc[day - window : day]
         target = _validate(strategy(day, history.copy()), prices.columns, day)
 
-        traded = float((target - held).abs().sum()) if started else float(target.abs().sum())
+        per_asset = (target - held).abs() if started else target.abs()
+        traded = float(per_asset.sum())
         if started and traded < config.no_trade_band:
             traded = 0.0
             target = held
+            per_asset = per_asset * 0.0
 
         charge = traded * config.cost_bps / 10_000.0
+        if impact is not None and traded > 0:
+            charge += _impact_charge(per_asset, day, asset_returns, impact)
         targets[day] = target
         turnover[day] = traded
         costs[day] = charge

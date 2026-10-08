@@ -36,13 +36,10 @@ def yfinance_fetcher(tickers: list[str], start: str, end: str | None) -> pd.Data
     """
     import yfinance as yf
 
-    exclusive_end = (
-        None if end is None else (pd.Timestamp(end) + pd.Timedelta(days=1)).date().isoformat()
-    )
     raw = yf.download(
         tickers,
         start=start,
-        end=exclusive_end,
+        end=_exclusive(end),
         auto_adjust=True,
         progress=False,
         group_by="column",
@@ -54,6 +51,36 @@ def yfinance_fetcher(tickers: list[str], start: str, end: str | None) -> pd.Data
         close = close.to_frame(tickers[0])
     close.index = pd.DatetimeIndex(close.index).tz_localize(None)
     return close
+
+
+def yfinance_dollar_volume(tickers: list[str], start: str, end: str | None) -> pd.DataFrame:
+    """Daily traded value in dollars, one column per ticker: unadjusted close times shares.
+
+    Adjusted closes are the wrong price here: they scale past sessions by later dividends
+    and so understate what was actually traded. A session with zero shares is returned as
+    missing, so that a market-impact model treats it as unknown rather than as free.
+    """
+    import yfinance as yf
+
+    raw = yf.download(
+        tickers,
+        start=start,
+        end=_exclusive(end),
+        auto_adjust=False,
+        progress=False,
+        group_by="column",
+    )
+    if raw.empty:
+        raise DataError(f"yfinance returned no volume for {tickers}")
+    shares = raw["Volume"].replace(0, float("nan"))
+    value = raw["Close"] * shares
+    value.index = pd.DatetimeIndex(value.index).tz_localize(None)
+    return value[tickers]
+
+
+def _exclusive(end: str | None) -> str | None:
+    """Yahoo stops the day before the ``end`` it is given; the package's ``end`` is inclusive."""
+    return None if end is None else (pd.Timestamp(end) + pd.Timedelta(days=1)).date().isoformat()
 
 
 def _cache_paths(cache_dir: Path, ticker: str) -> tuple[Path, Path]:

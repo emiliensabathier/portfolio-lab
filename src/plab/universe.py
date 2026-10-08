@@ -37,6 +37,14 @@ ETF_CORE: tuple[Asset, ...] = (
 # HYG, listed 2007-04-11, is the binding constraint on the common history.
 CORE_START = "2007-07-02"
 
+# The core universe without its two late listings. What it gives up in breadth (credit and
+# broad commodities) it buys in history: from GLD's listing, three years of estimation
+# still leave the 2008 crisis out of sample.
+ETF_LONG: tuple[Asset, ...] = tuple(a for a in ETF_CORE if a.ticker not in {"HYG", "DBC"})
+
+# GLD, listed 2004-11-18, is the binding constraint on the long history.
+LONG_START = "2004-11-18"
+
 
 def tickers(universe: tuple[Asset, ...]) -> list[str]:
     """Ticker symbols in declaration order."""

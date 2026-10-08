@@ -10,6 +10,7 @@ Multi-asset portfolio construction, risk analytics and backtesting on a ten-ETF 
 
 - None of equal weight, minimum variance, risk parity or maximum Sharpe beats a static 60/40 (Sharpe 0.82) out of sample from 2010 to 2026, net of 5 bps costs.
 - Only equal weight differs at the 5% level (Jobson-Korkie-Memmel p = 0.038, and it is worse); nothing survives Bonferroni.
+- The conclusion survives a longer run through 2008 and a book of up to $10bn with square-root market impact, where maximum Sharpe's turnover costs it 2.1% a year (see Robustness checks).
 - Look-ahead is impossible by construction: a strategy only ever receives a copy of the past, and a spy test checks it.
 
 Rendered report: <https://emiliensabathier.github.io/portfolio-lab/>
@@ -55,6 +56,55 @@ accumulates. `tests/fixtures/expected_metrics.json` freezes the same computation
 2024-12-30, so a reader can reproduce that snapshot offline, without network access, even
 as the numbers above keep moving.
 
+## Robustness checks
+
+Two checks on the headline, from `python scripts/extensions.py --end 2026-08-14`, written to
+[`docs/extensions.json`](docs/extensions.json). Same rules, same 36-month window, same
+5 bps spread, same bill.
+
+### A longer history, through 2008
+
+Dropping the two late listings (HYG and DBC) moves the common history back to GLD's
+listing in November 2004, so the out-of-sample window starts 2007-12-03 and lives through
+the crisis instead of replaying it. Eight ETFs, 2007-12-03 to 2026-08-14:
+
+| Strategy | CAGR | Volatility | Sharpe | Max drawdown | Dec 2007 to Mar 2009 | p vs 60/40 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 60/40 benchmark | 8.11% | 11.90% | 0.59 | -35.23% | -34.61% | — |
+| Equal weight | 7.01% | 13.90% | 0.45 | -38.83% | -37.45% | 0.141 |
+| Minimum variance | 4.05% | 5.56% | 0.48 | -17.41% | -2.98% | 0.636 |
+| Risk parity | 5.20% | 10.84% | 0.39 | -37.37% | -31.23% | 0.160 |
+| Maximum Sharpe | 8.28% | 10.58% | 0.67 | -24.94% | -9.03% | 0.755 |
+
+The headline conclusion holds: no rule's Sharpe differs from the 60/40's at 5%. What the
+crisis adds is the part a Sharpe ratio averages away. Minimum variance lost 3% from the
+first out-of-sample month to the March 2009 trough while the 60/40 lost 35%, and maximum
+Sharpe lost 9%; over the full window maximum Sharpe edges the benchmark (0.67 against 0.59)
+but the gap is well inside the noise (p = 0.755). Equal weight and risk parity, which hold
+equities and REITs by construction, fell with the market.
+
+### Capacity: what size does to the result
+
+The headline charges a flat 5 bps, which is a fair spread for these funds at small size and
+says nothing about size. Here every backtest also pays square-root market impact,
+`sigma * sqrt(traded / ADV)` per asset on each rebalance (coefficient 1; Toth et al. 2011),
+with `ADV` the fund's own average daily traded value over the 20 sessions before the trade
+and `sigma` its 60-day volatility. Ten-ETF core universe, 2010-08-02 to 2026-08-14:
+
+| Strategy | Sharpe, spread only | $100m | $1bn | $10bn | Cost drag at $10bn |
+| --- | --- | --- | --- | --- | --- |
+| 60/40 benchmark | 0.82 | 0.82 | 0.82 | 0.81 | 10 bps a year |
+| Equal weight | 0.59 | 0.58 | 0.58 | 0.56 | 27 bps |
+| Minimum variance | 0.44 | 0.43 | 0.42 | 0.37 | 32 bps |
+| Risk parity | 0.53 | 0.52 | 0.51 | 0.47 | 45 bps |
+| Maximum Sharpe | 0.66 | 0.64 | 0.59 | 0.45 | 214 bps |
+
+Up to a billion dollars, impact costs the slow rules a few hundredths of Sharpe. At ten
+billion, maximum Sharpe pays 2.1% a year in costs, against 0.1% at spread only, because it
+turns its book over twice a year and some of the funds it can buy are thin (DBC trades
+about $25m a day, VNQ about $330m). The 60/40 barely moves: it trades two of the deepest
+funds there are, and rarely. Size widens the gap the headline already reports.
+
 ## Method
 
 - **Universe**: ten liquid ETFs across equity (SPY, IWM, EFA, EEM), rates (AGG, TLT, HYG)
@@ -89,10 +139,11 @@ Stated because they matter more than the headline numbers.
   prevents look-ahead in the weights. Broad index ETFs rather than single stocks limit
   survivorship inside each fund, since an index replaces its own failed constituents, but
   they do nothing about the bias in choosing the funds.
-- **The 2008 crisis is not in the out-of-sample backtest.** HYG listed in April 2007, so the
+- **The 2008 crisis is not in the headline backtest.** HYG listed in April 2007, so the
   common history starts 2007-07; the first 36 months are consumed by the estimation window,
   so the backtest itself only begins 2010-07 (first weights decided 2010-07-30, first return
-  recorded 2010-08-02).
+  recorded 2010-08-02). The eight-fund run under Robustness checks lives through it, at the
+  price of dropping credit and broad commodities.
 - **The stress tests are how 2008 is covered**, by applying each strategy's *final* weights
   to the realized asset returns of a historical crisis window. These are counterfactuals on
   the current allocation, not performance the strategy lived through: the weights are held
@@ -105,8 +156,10 @@ Stated because they matter more than the headline numbers.
   the frozen fixture ending 2024-12-30 gives **-4.5%** for the same strategy and the same
   scenario. Same code, same method, different as-of date — a reader who compares the two
   without this note would reasonably conclude something is broken.
-- **No slippage or market impact model.** Transaction costs are a flat spread on turnover.
-  Realistic for ten large ETFs at small size, optimistic at scale.
+- **The headline has no market impact model.** Its costs are a flat spread on turnover,
+  realistic for ten large ETFs at small size. The capacity table under Robustness checks
+  adds square-root impact; its coefficient of 1 is a convention from the literature, not
+  something fitted to these funds' own trades.
 - **Maximum Sharpe estimates expected returns as trailing sample means.** Each month it
   maximizes the excess-of-bill Sharpe estimated on the previous 36 months and holds the
   result for the next month, so the weights are out-of-sample but rest on the noisiest

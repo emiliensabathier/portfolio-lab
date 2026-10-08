@@ -163,3 +163,51 @@ def test_an_open_ended_window_is_passed_to_yahoo_unchanged(monkeypatch) -> None:
     yfinance_fetcher(["SPY"], "2026-07-01", None)
 
     assert fake.kwargs["end"] is None
+
+
+class _FakeRawYfinance:
+    """Unadjusted close and share volume, as yfinance returns them with auto_adjust off."""
+
+    def __init__(self) -> None:
+        self.kwargs: dict = {}
+
+    def download(self, tickers, **kwargs):
+        self.kwargs = kwargs
+        index = pd.DatetimeIndex(["2026-07-17", "2026-07-20"])
+        columns = pd.MultiIndex.from_product([["Close", "Volume"], tickers])
+        return pd.DataFrame([[10.0, 20.0, 100, 50], [11.0, 21.0, 200, 0]], index=index,
+                            columns=columns)
+
+
+def test_dollar_volume_is_unadjusted_close_times_shares(monkeypatch) -> None:
+    import sys
+
+    from plab.data.loader import yfinance_dollar_volume
+
+    fake = _FakeRawYfinance()
+    monkeypatch.setitem(sys.modules, "yfinance", fake)
+
+    volume = yfinance_dollar_volume(["SPY", "AGG"], "2026-07-01", "2026-07-20")
+
+    # Adjusted closes would scale old volume by later dividends; the traded value is raw.
+    assert fake.kwargs["auto_adjust"] is False
+    assert fake.kwargs["end"] == "2026-07-21"
+    assert volume.loc["2026-07-17", "SPY"] == 1_000.0
+    assert volume.loc["2026-07-20", "SPY"] == 2_200.0
+    # A session with no shares traded is unknown liquidity, not infinite cost.
+    assert pd.isna(volume.loc["2026-07-20", "AGG"])
+
+
+def test_dollar_volume_refuses_an_empty_download(monkeypatch) -> None:
+    import sys
+
+    from plab.data.loader import yfinance_dollar_volume
+
+    class Empty:
+        def download(self, tickers, **kwargs):
+            return pd.DataFrame()
+
+    monkeypatch.setitem(sys.modules, "yfinance", Empty())
+
+    with pytest.raises(DataError, match="volume"):
+        yfinance_dollar_volume(["SPY"], "2026-07-01", None)
